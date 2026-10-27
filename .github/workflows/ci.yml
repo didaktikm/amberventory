@@ -45,11 +45,16 @@ jobs:
 
       - uses: azure/setup-helm@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - uses: helm/chart-testing-action@v2.7.0
 
       - name: chart-testing lint
         run: |
-          pip install --quiet yamale yamllint
+          # ubuntu-24.04 system Python is externally managed (PEP 668); use setup-python's interpreter.
+          python -m pip install --quiet yamale yamllint
           ct lint --config .github/ct.yaml --all
 
       - name: Render every values profile and validate against Kubernetes schemas
