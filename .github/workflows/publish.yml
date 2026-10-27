@@ -29,7 +29,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      security-events: write
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
@@ -78,27 +77,20 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Informational: the product is a vulnerability scanner, so scan its own image too.
+      # Informational: AmberVentory is a vulnerability tool, so scan its own image too.
+      # Report goes to the job log; no code-scanning upload (needs security-events permission).
       - name: Scan the image with Trivy
         uses: aquasecurity/trivy-action@0.28.0
         continue-on-error: true
         with:
           image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
-          format: sarif
-          output: trivy.sarif
+          format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "0"
         env:
           TRIVY_USERNAME: ${{ github.actor }}
           TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload the scan to code scanning
-        uses: github/codeql-action/upload-sarif@v3
-        continue-on-error: true # requires code scanning to be available for the repository
-        with:
-          sarif_file: trivy.sarif
-          category: trivy-image
 
   chart:
     name: Package and push the Helm chart
