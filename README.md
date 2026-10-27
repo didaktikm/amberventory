@@ -50,7 +50,7 @@
 
 ## Быстрый старт
 
-Один контейнер и один том данных. Пароль хранится в файле с правами `600`, а не в командной строке:
+Один контейнер и один том данных. Пароль хранится в файле с правами `600`, а не в командной строке. Сначала создайте файл настроек (команда для bash; в Windows используйте Git Bash или WSL):
 
 ```bash
 umask 077
@@ -59,24 +59,13 @@ AMBER_HOST=127.0.0.1
 AMBER_USER=admin
 AMBER_PASSWORD=$(openssl rand -base64 24)
 EOF
-
-docker run -d --name amberventory --restart unless-stopped \
-  --network host \
-  --env-file amberventory.env \
-  -v amberventory-data:/data \
-  ghcr.io/didaktikm/amberventory:latest
 ```
 
-Интерфейс доступен на `http://127.0.0.1:8080` того же хоста, пароль — в `amberventory.env`. Для доступа с рабочих мест опубликуйте сервис через reverse proxy с TLS ([пример](docs/deployment.md#reverse-proxy)).
+Затем выберите вариант запуска по своей ОС.
 
-| Параметр | Назначение |
-|---|---|
-| `--network host` | nmap и SSH работают из сети хоста. Подробнее о вариантах: [Сеть и сканирование](docs/deployment.md#сеть-и-сканирование) |
-| `AMBER_HOST=127.0.0.1` | сервис слушает только локальный интерфейс |
-| `AMBER_USER`, `AMBER_PASSWORD` | HTTP basic auth; без них интерфейс открыт любому, кто достучится до порта |
-| `-v amberventory-data:/data` | базы уязвимостей, отчёты, загруженный SSH-ключ |
+### Docker Desktop (Windows, macOS)
 
-**Docker Desktop (macOS, Windows).** Сеть хоста там работает внутри виртуальной машины, и порт не появляется на `localhost` вашего компьютера. Используйте публикацию порта. В этом варианте сервис обязан слушать все интерфейсы контейнера, иначе публикация до него не дойдёт:
+Основной вариант для Windows и macOS. Docker Desktop запускает контейнеры в виртуальной машине, поэтому сеть хоста там не выводит порт на `localhost` вашего компьютера. Порт публикуется явно, и сервис слушает все интерфейсы контейнера:
 
 ```bash
 docker run -d --name amberventory --restart unless-stopped \
@@ -87,7 +76,30 @@ docker run -d --name amberventory --restart unless-stopped \
   ghcr.io/didaktikm/amberventory:latest
 ```
 
-Здесь порт опубликован только на loopback вашего компьютера, доступ извне закрыт. Сканирование подсети в этом варианте видит сеть контейнера, а не сеть вашего компьютера.
+Порт опубликован только на loopback вашего компьютера. Сканирование подсети в этом варианте видит сеть контейнера, а не сеть вашего компьютера.
+
+### Linux
+
+Сеть хоста даёт сервису прямой доступ к сетям сервера, без NAT:
+
+```bash
+docker run -d --name amberventory --restart unless-stopped \
+  --network host \
+  --env-file amberventory.env \
+  -v amberventory-data:/data \
+  ghcr.io/didaktikm/amberventory:latest
+```
+
+### После запуска
+
+Интерфейс доступен на `http://127.0.0.1:8080` того же компьютера, пароль — в `amberventory.env`. Для доступа с рабочих мест опубликуйте сервис через reverse proxy с TLS ([пример](docs/deployment.md#reverse-proxy)).
+
+| Параметр | Назначение |
+|---|---|
+| `-p 127.0.0.1:8080:8080` или `--network host` | доступ к интерфейсу; для сканирования сети см. [Сеть и сканирование](docs/deployment.md#сеть-и-сканирование) |
+| `AMBER_HOST=0.0.0.0` (только Docker Desktop) | сервис слушает все интерфейсы контейнера, иначе публикация порта до него не доходит |
+| `AMBER_USER`, `AMBER_PASSWORD` | HTTP basic auth; без них интерфейс открыт любому, кто достучится до порта |
+| `-v amberventory-data:/data` | базы уязвимостей, отчёты, загруженный SSH-ключ |
 
 Тег `latest` указывает на последний опубликованный релиз. Для сборки последнего коммита `main` используйте `edge`. Чтобы зафиксировать конкретную версию, подставьте её тег вместо `latest`. Пока пакет в GHCR приватный, перед загрузкой образа нужен `docker login ghcr.io`.
 
