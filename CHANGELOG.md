@@ -4,6 +4,14 @@
 
 ## [Не выпущено]
 
+## [0.2.1] — 2026-10-27
+
+### Исправлено
+
+- Импорт EPSS: скачанный файл проверяется до замены старого. Учитываются `Content-Length` и полное чтение gzip; при обрыве загрузки файл отбрасывается, и источник берётся следующий (резервное зеркало).
+- Битый файл EPSS больше не срывает обновление трекера и KEV: файл удаляется, ошибка попадает в статус, следующая попытка загрузит его заново.
+- Документация запуска: в Docker Desktop (macOS, Windows) host-сеть недоступна с `localhost`, описан вариант с `-p 127.0.0.1:8080:8080` и `-e AMBER_HOST=0.0.0.0`; то же для bridge-сети в `docs/deployment.md` и `docker-compose.yml`.
+
 ## [0.2.0] — 2026-10-27
 
 ### Изменено
@@ -40,6 +48,7 @@
 - Образ для `linux/amd64` и `linux/arm64`, Docker Compose, Helm-чарт.
 - CI: тесты, линтеры, проверка чарта, e2e-установка в kind; публикация образа и чарта в GHCR.
 
-[Не выпущено]: https://github.com/didaktikm/amberventory/compare/v0.2.0...HEAD
+[Не выпущено]: https://github.com/didaktikm/amberventory/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/didaktikm/amberventory/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/didaktikm/amberventory/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/didaktikm/amberventory/releases/tag/v0.1.0

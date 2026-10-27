@@ -8,12 +8,15 @@ services:
     build: .
     container_name: amberventory
     restart: unless-stopped
-    # Сеть хоста: nmap видит локальную сеть без NAT. Для bridge-сети удалите строку
-    # и раскомментируйте `ports` (сканирование подсети будет видеть только сеть контейнера).
+    # Сеть хоста: nmap видит локальную сеть без NAT. Недоступна в Docker Desktop (macOS, Windows).
+    # Для bridge-сети удалите network_mode, раскомментируйте `ports` и `environment` ниже:
+    # сервис должен слушать все интерфейсы контейнера, иначе публикация порта до него не дойдёт.
     network_mode: host
     # ports:
     #   - "127.0.0.1:8080:8080"
     env_file: .env
+    # environment:
+    #   AMBER_HOST: "0.0.0.0"   # переопределяет AMBER_HOST из .env
     volumes:
       - data:/data
       # Закреплённые ключи хостов для режима «Проверять host key»:

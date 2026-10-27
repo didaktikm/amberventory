@@ -76,6 +76,19 @@ docker run -d --name amberventory --restart unless-stopped \
 | `AMBER_USER`, `AMBER_PASSWORD` | HTTP basic auth; без них интерфейс открыт любому, кто достучится до порта |
 | `-v amberventory-data:/data` | базы уязвимостей, отчёты, загруженный SSH-ключ |
 
+**Docker Desktop (macOS, Windows).** Сеть хоста там работает внутри виртуальной машины, и порт не появляется на `localhost` вашего компьютера. Используйте публикацию порта. В этом варианте сервис обязан слушать все интерфейсы контейнера, иначе публикация до него не дойдёт:
+
+```bash
+docker run -d --name amberventory --restart unless-stopped \
+  -p 127.0.0.1:8080:8080 \
+  --env-file amberventory.env \
+  -e AMBER_HOST=0.0.0.0 \
+  -v amberventory-data:/data \
+  ghcr.io/didaktikm/amberventory:0.1.0
+```
+
+Здесь порт опубликован только на loopback вашего компьютера, доступ извне закрыт. Сканирование подсети в этом варианте видит сеть контейнера, а не сеть вашего компьютера.
+
 Тег `0.1.0` доступен после публикации релиза; до этого используйте `edge` (сборка последнего коммита `main`). Пока пакет в GHCR приватный, перед загрузкой образа нужен `docker login ghcr.io`.
 
 ## Установка

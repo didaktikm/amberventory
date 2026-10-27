@@ -49,6 +49,14 @@ CREATE TABLE IF NOT EXISTS cvss(cve TEXT PRIMARY KEY, score REAL, severity TEXT,
 """
 
 
+
+def verify_gzip_complete(path: str) -> None:
+    """Read the whole gzip stream; raise if it is truncated or corrupt."""
+    with gzip.open(path, "rb") as f:
+        while f.read(1024 * 1024):
+            pass
+
+
 class VulnDB:
     def __init__(self):
         self.feeds_dir = os.path.join(settings.data_dir, "feeds")
@@ -123,7 +131,12 @@ class VulnDB:
             if os.path.exists(kev):
                 self.import_kev(kev)
             if os.path.exists(epss):
-                self.import_epss(epss)
+                try:
+                    self.import_epss(epss)
+                except Exception as e:  # a bad EPSS file must not block the tracker and KEV data
+                    log.warning("EPSS import failed, removing the file so the next run downloads it: %s", e)
+                    self.status["errors"].append(f"EPSS: импорт не удался ({e})")
+                    os.unlink(epss)
             if not os.path.exists(tracker):
                 raise RuntimeError("Нет данных Debian Security Tracker: загрузка не удалась, "
                                    "а локальной копии нет. Загрузите JSON вручную в интерфейсе.")
@@ -135,16 +148,29 @@ class VulnDB:
             self.lock.release()
 
     def _download_epss(self, dest):
+        """Download EPSS to a temp file and replace the cached copy only if the download is complete.
+
+        A truncated transfer (proxy reset, network drop) still yields a readable HTTP body, so a
+        Content-Length check and a full gzip read are needed before the file is trusted.
+        """
         last = None
         for url in EPSS_URLS:
+            tmp = dest + ".part"
             try:
                 req = urllib.request.Request(url.strip(), headers={"User-Agent": UA})
-                with urllib.request.urlopen(req, timeout=120) as r, open(dest + ".part", "wb") as f:
+                with urllib.request.urlopen(req, timeout=120) as r, open(tmp, "wb") as f:
+                    expected = r.headers.get("Content-Length")
                     shutil.copyfileobj(r, f, 1024 * 1024)
-                os.replace(dest + ".part", dest)
+                if expected is not None and os.path.getsize(tmp) != int(expected):
+                    raise OSError(f"загрузка обрезана: получено {os.path.getsize(tmp)} из {expected} байт")
+                verify_gzip_complete(tmp)
+                os.replace(tmp, dest)
                 return
             except Exception as e:
                 last = e
+                log.warning("EPSS from %s rejected: %s", url.strip(), e)
+                if os.path.exists(tmp):
+                    os.unlink(tmp)
         raise last or RuntimeError("EPSS unavailable")
 
     def import_tracker(self, path):
