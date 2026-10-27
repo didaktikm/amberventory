@@ -6,4 +6,6 @@ chart-dirs:
 # The chart version is set from the git tag by the release workflow, so it is not bumped in commits.
 check-version-increment: false
 validate-maintainers: false
+chart-yaml-schema: .github/chart_schema.yaml
+lint-conf: .github/lintconf.yaml
 helm-extra-args: --timeout 300s

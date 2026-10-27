@@ -1,0 +1,21 @@
+# Yamale schema for Chart.yaml, validated by chart-testing (ct lint).
+apiVersion: enum('v2')
+name: regex('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$', required=True)
+version: str(required=True)
+kubeVersion: str(required=False)
+description: str(required=True)
+type: enum('application', 'library', required=False)
+keywords: list(str(), required=False)
+home: str(required=False)
+sources: list(str(), required=False)
+dependencies: any(required=False)
+maintainers: list(include('maintainer'), required=False)
+icon: str(required=False)
+appVersion: str(required=False)
+deprecated: bool(required=False)
+annotations: map(str(), required=False)
+---
+maintainer:
+  name: str(required=True)
+  email: str(required=False)
+  url: str(required=False)

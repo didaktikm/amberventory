@@ -48,7 +48,9 @@ jobs:
       - uses: helm/chart-testing-action@v2.7.0
 
       - name: chart-testing lint
-        run: ct lint --config .github/ct.yaml --all
+        run: |
+          pip install --quiet yamale yamllint
+          ct lint --config .github/ct.yaml --all
 
       - name: Render every values profile and validate against Kubernetes schemas
         env:
@@ -66,8 +68,12 @@ jobs:
           done
 
       - name: Chart README is up to date
+        env:
+          HELM_DOCS_VERSION: "1.14.2"
         run: |
-          docker run --rm -v "${PWD}:/helm-docs" -u "$(id -u)" jnorwood/helm-docs:v1.14.0 --chart-search-root deploy/helm
+          curl -fsSL "https://github.com/norwoodj/helm-docs/releases/download/v${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION}_Linux_x86_64.tar.gz" \
+            | tar -xz -C /usr/local/bin helm-docs
+          helm-docs --chart-search-root deploy/helm
           git diff --exit-code -- deploy/helm || {
             echo "::error::deploy/helm/amberventory/README.md is out of date. Run helm-docs and commit the result."
             exit 1

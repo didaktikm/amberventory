@@ -1,0 +1,13 @@
+# yamllint configuration used by chart-testing (ct lint).
+extends: default
+rules:
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  document-start: disable
+  line-length:
+    max: 200
+    level: warning
+  truthy:
+    allowed-values: ["true", "false", "on"]
+    check-keys: false
