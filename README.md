@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="AmberVentory — Debian fleet inventory & vulnerability report" width="860">
+  <img src="docs/assets/banner.svg?v=2" alt="AmberVentory — Debian fleet inventory & vulnerability report" width="860">
 </p>
 
 <p align="center">
@@ -13,8 +13,8 @@
 **AmberVentory** — веб-сервис для инвентаризации парка Debian-серверов и оценки уязвимостей. Один контейнер: FastAPI, Ansible (только чтение) и nmap. На целевых машинах ничего устанавливать не нужно — достаточно SSH и bash.
 
 <p align="center">
-  <img src="docs/assets/screenshot-start.png" alt="Стартовая страница" width="49%">
-  <img src="docs/assets/screenshot-report.png" alt="Отчёт" width="49%">
+  <img src="docs/assets/screenshot-start.png?v=2" alt="Стартовая страница" width="49%">
+  <img src="docs/assets/screenshot-report.png?v=2" alt="Отчёт" width="49%">
 </p>
 
 ## Содержание

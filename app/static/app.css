@@ -15,7 +15,7 @@
 :root {
   --paper: #ECEEE9; --surface: #F8F9F6; --sunken: #E2E5DF;
   --ink: #1C2330; --ink-2: #4C5565; --ink-3: #7A828E; --line: #D2D6CE; --line-2: #BFC4BB;
-  --amber: #E39A1E; --resin: #8E520A; --amber-wash: #F6E3BF;
+  --amber: #E75001; --resin: #A83A00; --amber-wash: #FBE3D6;
   --action: #1C2330; --action-ink: #F8F9F6;
   --crit: #C8243C; --high: #DC5523; --med: #BE8C00; --unrated: #857F96; --low: #3A73A8; --negl: #A2A89F; --ok: #2E8656;
   --crit-wash: #F7DEE1; --high-wash: #F9E2D6; --med-wash: #F5ECCC; --low-wash: #DDE8F2; --ok-wash: #DCEEE2;
@@ -28,7 +28,7 @@
   :root:not([data-theme="light"]) {
     --paper: #14181E; --surface: #1C2129; --sunken: #11151A;
     --ink: #E5E8E2; --ink-2: #A7AEB8; --ink-3: #7A828E; --line: #2C333D; --line-2: #3A4250;
-    --amber: #F0A93A; --resin: #F5C373; --amber-wash: #3A2D17;
+    --amber: #FF7A3D; --resin: #FFB08A; --amber-wash: #3A2118;
     --action: #E5E8E2; --action-ink: #14181E;
     --crit: #F0566A; --high: #FF7D4A; --med: #E6B825; --unrated: #A49FB5; --low: #6EA6DA; --negl: #66705F; --ok: #4EC184;
     --crit-wash: #3C1A20; --high-wash: #3B2218; --med-wash: #362E12; --low-wash: #18283A; --ok-wash: #15301F;
@@ -38,7 +38,7 @@
 :root[data-theme="dark"] {
   --paper: #14181E; --surface: #1C2129; --sunken: #11151A;
   --ink: #E5E8E2; --ink-2: #A7AEB8; --ink-3: #7A828E; --line: #2C333D; --line-2: #3A4250;
-  --amber: #F0A93A; --resin: #F5C373; --amber-wash: #3A2D17;
+  --amber: #FF7A3D; --resin: #FFB08A; --amber-wash: #3A2118;
   --action: #E5E8E2; --action-ink: #14181E;
   --crit: #F0566A; --high: #FF7D4A; --med: #E6B825; --unrated: #A49FB5; --low: #6EA6DA; --negl: #66705F; --ok: #4EC184;
   --crit-wash: #3C1A20; --high-wash: #3B2218; --med-wash: #362E12; --low-wash: #18283A; --ok-wash: #15301F;
@@ -67,9 +67,8 @@ p { margin: 0; }
 .topbar { display: flex; align-items: center; gap: 16px; padding: 14px 28px; border-bottom: 1px solid var(--line);
   background: var(--surface); position: sticky; top: 0; z-index: 20; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 680; font-size: 18px; letter-spacing: -.02em; }
-.brand-mark { width: 22px; height: 22px; border-radius: 7px 7px 7px 2px;
-  background: radial-gradient(circle at 32% 30%, #FFE7A8 0 12%, var(--amber) 40%, var(--resin) 100%); }
-.brand b { color: var(--resin); font-weight: 680; }
+.brand-mark { width: 26px; height: 26px; flex: none; color: var(--amber); }
+.brand b { color: var(--amber); font-weight: 680; }
 .topbar .spacer { flex: 1; }
 .dbstat { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
