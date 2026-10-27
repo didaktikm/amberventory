@@ -1,10 +1,10 @@
 apiVersion: v2
 name: amberventory
-description: Debian fleet inventory and vulnerability report (Ansible, nmap, Debian Security Tracker, CISA KEV, EPSS) with a web UI
+description: Инвентаризация парка Debian и оценка уязвимостей (Ansible, nmap, Debian Security Tracker, CISA KEV, EPSS) с веб-интерфейсом
 type: application
-# Chart version: bumped by the release workflow from the git tag.
+# Версия чарта. При релизе workflow публикации подставляет версию из git-тега.
 version: 0.1.0
-# Application version: also the default image tag.
+# Версия приложения; по умолчанию также тег образа. При релизе берётся из git-тега.
 appVersion: "0.1.0"
 kubeVersion: ">=1.25.0-0"
 home: https://github.com/didaktikm/amberventory
@@ -19,8 +19,8 @@ keywords:
   - cve
   - devops
 maintainers:
-  - name: didaktikm
-    url: https://github.com/didaktikm
+  - name: Amber Data, отдел DevOps
+    url: https://github.com/didaktikm/amberventory
 icon: https://raw.githubusercontent.com/didaktikm/amberventory/main/docs/assets/logo-mark.svg
 annotations:
   artifacthub.io/license: Apache-2.0

@@ -1,23 +1,22 @@
 AmberVentory
-Copyright 2026 AmberVentory contributors
+Copyright 2026 Amber Data
 
-Licensed under the Apache License, Version 2.0 (see LICENSE).
+Распространяется по лицензии Apache License, Version 2.0 (см. LICENSE).
 
-TODO(owner): replace "AmberVentory contributors" with the legal name of the copyright holder.
+Сторонние компоненты
+--------------------
+Входят в репозиторий:
+  * Шрифт Onest (app/static/fonts) — SIL Open Font License 1.1, см. app/static/fonts/OFL-Onest.txt
+  * Шрифт JetBrains Mono (app/static/fonts) — SIL Open Font License 1.1, см. app/static/fonts/OFL-JetBrainsMono.txt
 
-Third-party components
-----------------------
-Bundled in this repository:
-  * Onest font (app/static/fonts) - SIL Open Font License 1.1, see app/static/fonts/OFL-Onest.txt
-  * JetBrains Mono font (app/static/fonts) - SIL Open Font License 1.1, see app/static/fonts/OFL-JetBrainsMono.txt
+Устанавливаются в образ при сборке (не подпадают под лицензию этого репозитория):
+  * ansible-core — GPL-3.0-or-later. Запускается как отдельный процесс (ansible-playbook,
+    ansible-inventory); AmberVentory не линкуется с ним.
+  * nmap — Nmap Public Source License (NPSL). Запускается как отдельный процесс. При
+    распространении образа за пределы организации проверьте условия NPSL: https://nmap.org/npsl/
+  * Зависимости Python (FastAPI, Uvicorn, ijson, python-multipart) — лицензии MIT и BSD.
+  * Пакеты базового образа Debian — по их собственным лицензиям.
 
-Installed into the container image at build time (not part of this repository's license):
-  * ansible-core - GPL-3.0-or-later. Run as a separate process (ansible-playbook, ansible-inventory);
-    AmberVentory does not link against it.
-  * nmap - Nmap Public Source License (NPSL). Run as a separate process. If you redistribute the
-    image, review the NPSL terms: https://nmap.org/npsl/
-  * Python dependencies (FastAPI, Uvicorn, ijson, python-multipart) - MIT/BSD-style licenses.
-  * Debian base image packages - their respective licenses.
-
-Data sources (downloaded at runtime, not redistributed): Debian Security Tracker, CISA KEV,
-FIRST EPSS, NIST NVD. Check each provider's terms of use for your use case.
+Источники данных (загружаются во время работы, не распространяются вместе с сервисом):
+Debian Security Tracker, CISA KEV, FIRST EPSS, NIST NVD. Условия использования определяет
+каждый источник.

@@ -1,239 +1,138 @@
 <p align="center">
-  <img src="docs/assets/banner.svg?v=2" alt="AmberVentory — Debian fleet inventory & vulnerability report" width="860">
+  <img src="docs/assets/banner.svg?v=2" alt="AmberVentory: инвентаризация Debian-парка и отчёт об уязвимостях" width="860">
 </p>
 
 <p align="center">
   <a href="https://github.com/didaktikm/amberventory/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/didaktikm/amberventory/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-E39A1E"></a>
-  <img alt="Debian 8–13" src="https://img.shields.io/badge/targets-Debian%208%E2%80%9313-A81D33">
-  <img alt="Helm chart" src="https://img.shields.io/badge/helm-chart-0F1689">
-  <img alt="Image: amd64 + arm64" src="https://img.shields.io/badge/image-amd64%20%7C%20arm64-1C2330">
+  <a href="https://github.com/didaktikm/amberventory/releases"><img alt="Релиз" src="https://img.shields.io/github/v/release/didaktikm/amberventory?color=E75001&label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7"></a>
+  <a href="LICENSE"><img alt="Лицензия: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-E75001"></a>
 </p>
 
-**AmberVentory** — веб-сервис для инвентаризации парка Debian-серверов и оценки уязвимостей. Один контейнер: FastAPI, Ansible (только чтение) и nmap. На целевых машинах ничего устанавливать не нужно — достаточно SSH и bash.
+**AmberVentory** — внутренний сервис Amber Data для инвентаризации парка серверов Debian и оценки их уязвимостей. Сервис подключается к хостам по SSH, собирает сведения об ОС, ядре, дисках, пользователях, службах и пакетах и сопоставляет установленные версии с Debian Security Tracker, CISA KEV и FIRST EPSS. Агенты на хостах не нужны: достаточно SSH и bash.
 
 <p align="center">
   <img src="docs/assets/screenshot-start.png?v=2" alt="Стартовая страница" width="49%">
-  <img src="docs/assets/screenshot-report.png?v=2" alt="Отчёт" width="49%">
+  <img src="docs/assets/screenshot-report.png?v=2" alt="Отчёт по парку" width="49%">
 </p>
 
 ## Содержание
 
 - [Возможности](#возможности)
+- [Требования](#требования)
 - [Быстрый старт](#быстрый-старт)
-- [Установка](#установка) — Docker Compose, Kubernetes (Helm)
-- [Как пользоваться](#как-пользоваться)
-- [Что собирается](#что-собирается)
-- [Как оцениваются уязвимости](#как-оцениваются-уязвимости)
-- [Ограничения](#ограничения-важно-знать)
+- [Установка](#установка)
+- [Работа с сервисом](#работа-с-сервисом)
+- [Ограничения](#ограничения)
 - [Безопасность](#безопасность)
-- [Конфигурация](#конфигурация)
-- [API](#api)
-- [Разработка](#разработка)
-- [CI/CD и релизы](#cicd-и-релизы)
+- [Документация](#документация)
+- [Сопровождение](#сопровождение)
 - [Лицензия](#лицензия)
 
 ## Возможности
 
+- **Поиск хостов.** Сканирование подсети (nmap находит открытый SSH и по баннеру определяет Debian и примерный релиз) или импорт inventory Ansible в формате INI или YAML с группами, `ansible_host`, `ansible_port`, `ansible_user` и джамп-хостами.
+- **Сбор без агентов.** Сборщик — один bash-скрипт, который Ansible выполняет по SSH. Python на хостах не нужен.
+- **Инвентаризация.** Релиз и срок поддержки Debian, запущенное и установленные ядра, файловые системы и inode, пользователи и sudo, прикладные службы (СУБД, веб-серверы, брокеры, контейнеры; системные службы Debian скрыты), открытые порты, параметры `sshd`, TLS-сертификаты, пакеты и доступные обновления.
+- **Оценка уязвимостей.** Сопоставление версий по алгоритму dpkg, уровни «Критично», «Высокий», «Средний», «Низкий», «Без оценки»; отметки CISA KEV и вероятность эксплуатации EPSS; CVSS из NVD для CVE, которые Debian ещё не оценил. Подробно: [docs/vulnerability-assessment.md](docs/vulnerability-assessment.md).
+- **Отчёты.** Сводка по парку, детализация по хостам, CVE и службам, фильтры, история отчётов, выгрузка в CSV и JSON, версия для печати.
+- **Развёртывание.** Образ для `linux/amd64` и `linux/arm64`, Docker Compose, Helm-чарт с усиленной конфигурацией пода (non-root, read-only rootfs, без capabilities, NetworkPolicy, Ingress или Gateway API).
+
+## Требования
+
 | | |
 |---|---|
-| **Два способа добавить хосты** | «Сканировать подсеть» (nmap находит SSH, по баннеру угадывает Debian) или «Использовать inventory» (INI/YAML Ansible: группы, `ansible_host`, `ansible_port`, `ansible_user`, джамп-хосты) |
-| **SSH-ключ из интерфейса** | «Загрузить ключ», в том числе с passphrase (хранится только в памяти процесса) |
-| **Инвентаризация** | ОС и релиз, ядро, диски и inode (аналог `df -h`), пользователи, службы (системные Debian скрыты; БД, веб, очереди, брокеры, контейнеры выделены), сеть, TLS-сертификаты, пакеты |
-| **Уязвимости** | Сопоставление с Debian Security Tracker, пометки CISA KEV и EPSS, CVSS из NVD по запросу. Красный — критично, жёлтый — предупреждение |
-| **Отчёты** | Отдельная страница с раскрывающимися деталями, история сохраняется, выгрузка CSV |
-| **Без агентов** | Сборщик — один bash-скрипт. Python на целях не нужен, работает и на Debian 8/9 |
-| **Production-ready деплой** | Docker Compose и Helm-чарт (non-root, read-only rootfs, NetworkPolicy, Ingress / Gateway API) |
+| Хосты | Debian 8–13. Проверка на реальных хостах каждого релиза ещё не проведена: см. [матрицу совместимости](docs/requirements.md#совместимость). Другие дистрибутивы: только инвентаризация, без оценки уязвимостей |
+| Доступ к хостам | SSH-ключ; для полного набора данных — root или ограниченный `sudo` без пароля ([список команд](docs/requirements.md#доступ-к-хостам)) |
+| Запуск сервиса | Docker Engine (для Compose — плагин Compose v2) или Kubernetes 1.25+ с Helm 3.8+ |
+| Сеть | SSH от сервиса до хостов; HTTPS до источников баз уязвимостей или их внутренних зеркал ([перечень адресов](docs/requirements.md#сеть)) |
+
+Совместимость, сайзинг и сетевые доступы подробно: [docs/requirements.md](docs/requirements.md).
 
 ## Быстрый старт
 
-Один контейнер, один том с данными. Пароль задайте свой:
+Один контейнер и один том данных. Пароль хранится в файле с правами `600`, а не в командной строке:
 
 ```bash
+umask 077
+cat > amberventory.env <<EOF
+AMBER_HOST=127.0.0.1
+AMBER_USER=admin
+AMBER_PASSWORD=$(openssl rand -base64 24)
+EOF
+
 docker run -d --name amberventory --restart unless-stopped \
   --network host \
-  -e AMBER_HOST=127.0.0.1 \
-  -e AMBER_PORT=8080 \
-  -e AMBER_USER=admin \
-  -e AMBER_PASSWORD="$(openssl rand -base64 24)" \
+  --env-file amberventory.env \
   -v amberventory-data:/data \
   ghcr.io/didaktikm/amberventory:0.1.0
 ```
 
-Откройте `http://127.0.0.1:8080`. Сгенерированный пароль попадает в переменные контейнера, поэтому его можно посмотреть через `docker inspect amberventory`. Проще сразу записать свой пароль в менеджер паролей и подставить его вместо `$(openssl rand -base64 24)`.
+Интерфейс доступен на `http://127.0.0.1:8080` того же хоста, пароль — в `amberventory.env`. Для доступа с рабочих мест опубликуйте сервис через reverse proxy с TLS ([пример](docs/deployment.md#reverse-proxy)).
 
-Параметры:
-
-| Параметр | Зачем |
+| Параметр | Назначение |
 |---|---|
-| `--network host` | nmap видит локальную сеть напрямую, без NAT. Для bridge уберите и добавьте `-p 127.0.0.1:8080:8080` (сканирование подсети тогда видит только сеть контейнера) |
-| `AMBER_HOST=127.0.0.1` | слушаем только локально; публикуйте через reverse proxy с TLS |
-| `AMBER_USER`, `AMBER_PASSWORD` | basic auth. Без них интерфейс открыт всем, кто достучится до порта |
-| `-v amberventory-data:/data` | база, отчёты и SSH-ключ. Без тома всё пропадёт при пересоздании контейнера |
+| `--network host` | nmap и SSH работают из сети хоста. Подробнее о вариантах: [Сеть и сканирование](docs/deployment.md#сеть-и-сканирование) |
+| `AMBER_HOST=127.0.0.1` | сервис слушает только локальный интерфейс |
+| `AMBER_USER`, `AMBER_PASSWORD` | HTTP basic auth; без них интерфейс открыт любому, кто достучится до порта |
+| `-v amberventory-data:/data` | базы уязвимостей, отчёты, загруженный SSH-ключ |
 
-Посмотреть интерфейс без реального парка:
-
-```bash
-docker exec amberventory python -m tools.make_demo
-```
-
-Образ с тегом `0.1.0` появится после публикации релиза. До этого используйте `ghcr.io/didaktikm/amberventory:edge`. Если пакет ещё приватный, `docker pull` потребует `docker login ghcr.io`.
-
-Compose и Kubernetes ниже.
+Тег `0.1.0` доступен после публикации релиза; до этого используйте `edge` (сборка последнего коммита `main`). Пока пакет в GHCR приватный, перед загрузкой образа нужен `docker login ghcr.io`.
 
 ## Установка
 
-### Docker Compose
+| Способ | Когда использовать | Инструкция |
+|---|---|---|
+| `docker run` | одиночный сервер, пробный запуск | [Быстрый старт](#быстрый-старт) |
+| Docker Compose | постоянная установка на выделенном сервере | [docs/deployment.md](docs/deployment.md#docker-compose) |
+| Helm | Kubernetes | [docs/deployment.md](docs/deployment.md#kubernetes-helm), [справочник параметров чарта](deploy/helm/amberventory/README.md) |
 
-Поставляемый `docker-compose.yml` использует `network_mode: host`, чтобы nmap видел локальную сеть напрямую, и слушает `127.0.0.1:8080`. Опубликуйте через reverse proxy с TLS, например Caddy:
+Сервис рассчитан на один экземпляр: состояние выполняющихся сборов хранится в памяти процесса, данные — в SQLite на одном томе. Горизонтальное масштабирование не поддерживается.
 
-```
-inventory.corp.local {
-    reverse_proxy 127.0.0.1:8080
-}
-```
+## Работа с сервисом
 
-**Смените пароль `change-me` до первого запуска.** Для bridge-сети уберите `network_mode` и раскомментируйте `ports`.
+1. **Хосты.** Укажите подсеть или адреса и запустите сканирование либо загрузите inventory.
+2. **SSH-ключ.** Загрузите приватный ключ; passphrase хранится только в памяти процесса.
+3. **Сбор.** Выберите хосты и запустите сбор; прогресс отображается по каждому хосту.
+4. **Отчёт.** По завершении сбора отчёт открывается в отдельной вкладке и сохраняется в истории.
 
-### Kubernetes (Helm)
+Базы уязвимостей обновляются автоматически раз в 6 часов (`AMBER_FEED_TTL`) и вручную кнопкой «Обновить». Для изолированного контура предусмотрены внутренние зеркала и ручная загрузка: [docs/deployment.md](docs/deployment.md#изолированный-контур).
 
-Образ и чарт публикуются в GHCR. Чарт — OCI-артефакт:
+Демонстрационный отчёт на синтетических данных удобно смотреть в отдельном контейнере, чтобы не смешивать его с рабочими отчётами: [docs/operations.md](docs/operations.md#демонстрационные-данные).
 
-```bash
-helm install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
-  --version 0.1.0 --namespace amberventory --create-namespace \
-  --set auth.password='<сильный-пароль>' \
-  --set ingress.enabled=true \
-  --set ingress.className=nginx \
-  --set 'ingress.hosts[0].host=inventory.corp.local' \
-  --set 'ingress.hosts[0].paths[0].path=/' \
-  --set 'ingress.hosts[0].paths[0].pathType=Prefix'
-```
+## Ограничения
 
-Или из исходников: `helm install amberventory deploy/helm/amberventory …`.
-
-Что важно знать до установки:
-
-- **Реплика одна** (`strategy: Recreate`): состояние заданий и passphrase ключа живёт в памяти процесса, база — SQLite на одном RWO-томе. Масштабирование горизонтально не поддерживается.
-- **Пароль**: если `auth.password` и `auth.existingSecret` не заданы, чарт генерирует случайный и сохраняет его в Secret (через `lookup`). Это **не работает** при `helm template` и в GitOps (Argo CD, Flux) — там задавайте пароль явно или через `existingSecret`.
-- **Образ в GHCR** публикуется как приватный (так устроен GHCR по умолчанию). Workflow `publish.yml` переводит его в public, если в секретах репозитория задан `PACKAGES_TOKEN` (см. [docs/releasing.md](docs/releasing.md)). Без этого нужен `imagePullSecrets` или ручная смена видимости.
-- **Сканирование подсети** идёт из пода. Если нужна видимость LAN как с хоста — `--set hostNetwork=true` (и подумайте о NetworkPolicy).
-- Контейнер работает от UID 10001, `readOnlyRootFilesystem`, без capabilities, seccomp `RuntimeDefault`.
-
-Полный справочник значений — [`deploy/helm/amberventory/README.md`](deploy/helm/amberventory/README.md), подробности деплоя — [docs/deployment.md](docs/deployment.md).
-
-## Как пользоваться
-
-1. **Хосты.** Введите подсеть (`10.0.0.0/24`) и нажмите «Сканировать подсеть», либо загрузите inventory-файл.
-2. **Ключ.** Нажмите «Загрузить ключ» и выберите приватный SSH-ключ. На целях лучше завести отдельного пользователя только для чтения.
-3. **Сбор.** Выберите хосты и запустите сбор. Прогресс идёт по каждому хосту.
-4. **Отчёт.** Откроется отдельная страница: сводка по парку, хосты, уязвимости с фильтрами, пакеты. Прошлые отчёты сохраняются.
-5. **Базы уязвимостей.** Обновляются раз в 6 часов или по кнопке «Обновить». Для изолированных сетей есть ручная загрузка (см. ниже).
-
-## Что собирается
-
-Сборщик — `ansible/collector.sh`, выполняется модулем `script`. На хостах ничего не устанавливается и не меняется (кроме кэша apt, если включить «Обновить списки пакетов»).
-
-| Раздел | Источник |
-|---|---|
-| ОС, релиз, поддержка | `/etc/os-release`, `/etc/debian_version`, таблица EOL/LTS в `app/config.py` |
-| Ядро | `uname -r/-v` (версия пакета запущенного ядра), установленные `linux-image-*`, `/var/run/reboot-required` |
-| Диски | `df -PT`, inode, `lsblk` |
-| Пользователи | `getent passwd`: root, UID ≥ 1000 и все с login-shell; sudo-группы, число ключей в `authorized_keys`, состояние пароля |
-| Службы | `systemctl list-units --state=running`; системные скрыты, остальные по категориям (БД, веб, очереди, контейнеры, мониторинг…) |
-| Сеть | `ss -lntup`, Docker-контейнеры, ключевые параметры `sshd -T` |
-| Пакеты | `dpkg-query` с исходным пакетом и его версией |
-| Обновления | `apt-get -s dist-upgrade` (симуляция) |
-| TLS | сертификаты в `/etc/letsencrypt`, nginx, apache2, haproxy, postfix, dovecot, caddy: срок, самоподписанность, SHA-1, короткий ключ |
-
-## Как оцениваются уязвимости
-
-Источники кэшируются в томе:
-
-- **Debian Security Tracker** — какие CVE затрагивают какой исходный пакет в каком релизе и где исправлены. Версии сравниваются по алгоритму `dpkg --compare-versions` (проверено тестами против dpkg).
-- **CISA KEV** — CVE, эксплуатируемые в реальных атаках.
-- **FIRST EPSS** — вероятность эксплуатации в ближайшие 30 дней.
-- **NVD CVSS** — по кнопке в отчёте, только для CVE без оценки Debian. Без `NVD_API_KEY` медленно (~6 с на CVE).
-
-Уровень: urgency из Debian → иначе CVSS из NVD → иначе «без оценки». EPSS ≥ 50% поднимает до «высокого», попадание в KEV — всегда «критично». Ядро оценивается по **запущенной** версии: если исправленное ядро уже установлено, отчёт пишет «нужна перезагрузка».
-
-Статусы: «есть исправление» (и видит ли его apt на хосте), «исправления нет», «отложено Debian» (скрыто по умолчанию).
-
-**Список наблюдения** (`AMBER_WATCHLIST`): openssl, openssh, php\*, sudo, glibc, ядро, nginx, apache2, ca-certificates, gnutls и т.п. подсвечиваются в отчёте. Новые эксплуатируемые CVE приходят через KEV и трекер при обновлении баз автоматически.
-
-**Без интернета:** скачайте `https://security-tracker.debian.org/tracker/data/json` на другой машине и загрузите в блоке «Базы уязвимостей → Нет доступа в интернет?». Либо укажите внутренние зеркала (`AMBER_TRACKER_URL`, `AMBER_KEV_URL`, `AMBER_EPSS_URL`) или `HTTPS_PROXY`.
-
-## Ограничения (важно знать)
-
-- **Сторонние репозитории не покрыты.** Трекер знает только пакеты Debian. PHP из `packages.sury.org`, Docker CE, PostgreSQL из PGDG, nginx mainline помечаются «сторонний / вне трекера», CVE по ним **не сопоставляются**. Это слепая зона: проверяйте такие пакеты отдельно (версии видны в «Пакетах»).
-- **Контейнеры не сканируются**, только список запущенных. Для образов используйте Trivy или Grype.
-- **Не Debian** (Ubuntu и др.): инвентаризация работает, сопоставление CVE нет (нужны USN).
-- **EOL-релизы** (на конец 2026 года Debian 8–11): хост помечается EOL. Если релиза уже нет в трекере, CVE по нему не считаются. Это «неизвестно и не исправляется», а не «чисто».
-- Сопоставление по версиям без учёта того, используется ли уязвимая функция. Для «local» CVE на серверах без пользователей ложные срабатывания нормальны, смотрите scope и EPSS.
-- Без `apt-get update` список обновлений отражает кэш хоста; отчёт предупреждает, если кэш старше 7 дней.
+- **Только пакеты Debian.** Debian Security Tracker не знает о пакетах из сторонних репозиториев (`packages.sury.org`, Docker CE, PGDG, nginx.org и других). Такие пакеты помечаются как сторонние, CVE для них не сопоставляются.
+- **Неподдерживаемые релизы.** Если релиза больше нет в трекере, CVE для его хостов не сопоставляются. Отсутствие находок на таком хосте не означает отсутствия уязвимостей.
+- **Без учёта контекста.** Сопоставление идёт по версиям пакетов: сервис не проверяет, используется ли уязвимый компонент. Находки с вектором Local на хостах без интерактивных пользователей требуют ручной оценки.
+- **Контейнеры и образы** не анализируются, сервис только перечисляет запущенные контейнеры. Для образов используйте Trivy или Grype.
+- **Аутентификация.** Одна общая учётная запись basic auth: нет SSO, ролей и журнала действий пользователей. Обходной путь: [docs/security.md](docs/security.md#аутентификация).
+- **Мониторинг.** Есть только проверка живости `/healthz`, метрик Prometheus нет.
 
 ## Безопасность
 
-Сервис хранит SSH-ключ и строит карту уязвимостей вашей сети — относитесь к нему как к бастиону. Подробнее: [SECURITY.md](SECURITY.md).
+Сервис хранит SSH-ключ с доступом ко всему парку и строит карту уязвимостей сети. Эксплуатируйте его как бастион: доступ только из административного сегмента, TLS, обязательная аутентификация, отдельная учётная запись на хостах. Модель угроз, хранение секретов и рекомендации по усилению: [docs/security.md](docs/security.md). Порядок сообщения об уязвимостях в самом сервисе: [SECURITY.md](SECURITY.md).
 
-- Включите basic auth и TLS на прокси, не публикуйте в интернет.
-- Ключ лежит в томе с правами 600; на время задания делается временная расшифрованная копия, удаляется сразу после. Ключ можно удалить из интерфейса.
-- По умолчанию host key **не проверяется** (иначе первый запуск по новой подсети упадёт). Для строгого режима смонтируйте `known_hosts` (`knownHosts` в чарте) и включите «Проверять host key».
-- Username для SSH валидируется, цели сканирования ограничены `AMBER_MAX_SCAN_HOSTS`.
+## Документация
 
-## Конфигурация
+| Документ | Содержание |
+|---|---|
+| [Требования](docs/requirements.md) | совместимость, сайзинг, сеть, права на хостах |
+| [Развёртывание](docs/deployment.md) | Docker Compose, Helm, reverse proxy, сеть, изолированный контур |
+| [Настройка](docs/configuration.md) | переменные окружения и соответствие параметрам чарта |
+| [Эксплуатация](docs/operations.md) | резервное копирование, обновление, данные, логи, мониторинг |
+| [Безопасность](docs/security.md) | модель угроз, аутентификация, секреты, проверка ключей хостов |
+| [Оценка уязвимостей](docs/vulnerability-assessment.md) | источники, уровни, статусы, список наблюдения |
+| [Устранение неполадок](docs/troubleshooting.md) | типовые ошибки сбора, сети и баз уязвимостей |
+| [Архитектура](docs/architecture.md) | компоненты, поток данных, структура кода |
+| [Релизы](docs/releasing.md) | версионирование, выпуск, публикация образа и чарта |
+| [Термины](docs/glossary.md) | словарь терминов документации и интерфейса |
+| [История изменений](CHANGELOG.md) | изменения по версиям |
+| [Участие в разработке](CONTRIBUTING.md) | окружение разработчика, тесты, требования к изменениям |
 
-| Переменная | По умолчанию | Назначение |
-|---|---|---|
-| `AMBER_HOST`, `AMBER_PORT` | `0.0.0.0`, `8080` | адрес веб-интерфейса |
-| `AMBER_USER`, `AMBER_PASSWORD` | пусто | basic auth (пусто — выключено) |
-| `AMBER_DATA` | `/data` | каталог данных (SQLite, ключ, отчёты) |
-| `AMBER_FORKS` | `25` | параллельных SSH-сессий |
-| `AMBER_SSH_TIMEOUT` | `15` | таймаут подключения, с |
-| `AMBER_JOB_TIMEOUT` | `1800` | лимит на задание, с |
-| `AMBER_MAX_SCAN_HOSTS` | `4096` | лимит адресов для nmap |
-| `AMBER_FEED_TTL` | `21600` | период обновления баз, с |
-| `AMBER_NVD_MAX` | `300` | максимум CVE для запроса в NVD за запуск |
-| `AMBER_WATCHLIST` | см. `app/config.py` | пакеты под наблюдением, glob через запятую |
-| `NVD_API_KEY` | пусто | ускоряет загрузку CVSS |
-| `AMBER_TRACKER_URL`, `AMBER_KEV_URL`, `AMBER_EPSS_URL` | официальные | зеркала фидов |
+## Сопровождение
 
-В Helm-чарте это `config.*`, `auth.*`, `nvd.*`, `proxy.*` ([справочник](deploy/helm/amberventory/README.md)). Значения по умолчанию чарта отличаются от приложения в одном месте: `config.forks=10`.
-
-## API
-
-Swagger: `/api/docs`. Основное: `POST /api/scan`, `POST /api/inventory`, `POST /api/key`, `POST /api/jobs`, `GET /api/jobs/{id}`, `GET /api/reports/{id}`, `GET /api/reports/{id}/vulns.csv`, `POST /api/reports/{id}/reanalyze`. `GET /healthz` — без авторизации.
-
-## Разработка
-
-```
-app/main.py        FastAPI: страницы, API, basic auth
-app/jobs.py        фоновый запуск ansible-playbook, сборка отчёта
-app/parser.py      разбор вывода сборщика
-app/vulndb.py      загрузка и импорт фидов в SQLite (потоково)
-app/analyze.py     сопоставление пакетов с CVE, уровни, находки, сводка по парку
-app/debver.py      сравнение версий Debian
-app/static/        интерфейс без сборки (шрифты Onest и JetBrains Mono локально)
-ansible/           collector.sh + collect.yml + callback_plugins/amber.py
-deploy/helm/       Helm-чарт
-tools/make_demo.py демо-отчёт
-tests/             pytest (debver, parser, analyze, API)
-```
-
-```bash
-pip install -r requirements-dev.txt
-ruff check . && pytest
-```
-
-См. [CONTRIBUTING.md](CONTRIBUTING.md). Архитектура: [docs/architecture.md](docs/architecture.md).
-
-## CI/CD и релизы
-
-- `ci.yml` — на каждый PR и push в `main`: ruff, shellcheck, pytest; `ct lint`, валидация чарта (kubeconform) и проверка актуальности README чарта; e2e: сборка образа, установка чарта в kind, `helm test` и smoke-тест (включая nmap и разбор inventory при read-only rootfs).
-- `publish.yml` — после успешного CI: образ `ghcr.io/didaktikm/amberventory` (amd64+arm64, SBOM, provenance, отчёт Trivy). Теги: `edge` и `sha-…` для `main`; `X.Y.Z`, `X.Y`, `latest` для тега `vX.Y.Z`. На тег дополнительно публикуются чарт `oci://ghcr.io/didaktikm/charts/amberventory` и GitHub Release.
-
-Выпуск: `git tag v0.2.0 && git push origin v0.2.0`. Подробнее: [docs/releasing.md](docs/releasing.md).
+Владелец — отдел DevOps Amber Data. Ошибки и предложения — через [Issues](https://github.com/didaktikm/amberventory/issues); уязвимости в самом сервисе — только по [SECURITY.md](SECURITY.md). Исправления выпускаются для последней минорной версии. Формальный SLA не установлен.
 
 ## Лицензия
 
-[Apache License 2.0](LICENSE). Сторонние компоненты и их лицензии — в [NOTICE](NOTICE). Образ содержит nmap (NPSL) и запускает ansible-core (GPL-3.0) как отдельные процессы; при распространении образа учтите их условия.
+[Apache License 2.0](LICENSE). Сторонние компоненты и их лицензии перечислены в [NOTICE](NOTICE).

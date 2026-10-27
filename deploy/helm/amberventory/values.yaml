@@ -1,110 +1,110 @@
-# Default values for amberventory.
-# Comments starting with "# --" are used by helm-docs to generate README.md.
+# Значения по умолчанию для чарта amberventory.
+# Комментарии, начинающиеся с "# --", helm-docs переносит в README.md.
 
-# -- Override the chart name used in resource names
+# -- Заменяет имя чарта в именах ресурсов
 nameOverride: ""
-# -- Override the full resource name
+# -- Заменяет полное имя ресурсов
 fullnameOverride: ""
-# -- Labels added to every resource
+# -- Метки для всех ресурсов
 commonLabels: {}
-# -- Annotations added to every resource
+# -- Аннотации для всех ресурсов
 commonAnnotations: {}
 
 image:
-  # -- Image repository
+  # -- Репозиторий образа
   repository: ghcr.io/didaktikm/amberventory
-  # -- Image tag. Defaults to the chart `appVersion`
+  # -- Тег образа. По умолчанию `appVersion` чарта
   tag: ""
-  # -- Image digest (`sha256:...`). Takes precedence over `tag` when set
+  # -- Digest образа (`sha256:...`). Если задан, используется вместо `tag`
   digest: ""
-  # -- Image pull policy
+  # -- Политика загрузки образа
   pullPolicy: IfNotPresent
 
-# -- Pull secrets for a private registry. A new GitHub Container Registry package is private until you make it public
+# -- Секреты для загрузки образа из приватного реестра. Новый пакет в GitHub Container Registry приватный, пока его видимость не изменена
 imagePullSecrets: []
 
-# Authentication. AmberVentory holds an SSH key that opens every host in the inventory,
-# so running it without authentication is not supported by this chart by default.
+# Аутентификация. Сервис хранит SSH-ключ с доступом ко всем хостам,
+# поэтому по умолчанию чарт включает аутентификацию.
 auth:
-  # -- Enable HTTP basic authentication in the application (`/healthz` stays open for probes)
+  # -- Включить HTTP basic auth (`/healthz` остаётся открытым для проб)
   enabled: true
-  # -- Username. Ignored when `existingSecret` is set
+  # -- Имя пользователя. Не используется, если задан `existingSecret`
   username: admin
-  # -- Password. If empty, a random one is generated on first install and kept on upgrades
-  # (only works with `helm install/upgrade`. For `helm template`/GitOps set a value or `existingSecret`)
+  # -- Пароль. Если пусто, при первой установке генерируется случайный и сохраняется при обновлениях
+  # (только для `helm install/upgrade`; для `helm template` и GitOps задайте значение или `existingSecret`)
   password: ""
-  # -- Name of an existing Secret with the credentials
+  # -- Имя существующего Secret с учётными данными
   existingSecret: ""
-  # -- Key with the username in `existingSecret`
+  # -- Ключ с именем пользователя в `existingSecret`
   existingSecretUserKey: username
-  # -- Key with the password in `existingSecret`
+  # -- Ключ с паролем в `existingSecret`
   existingSecretPasswordKey: password
 
 nvd:
-  # -- NVD API key. Optional: speeds up CVSS enrichment about ten times
+  # -- Ключ API NVD. Необязательный: ускоряет загрузку CVSS примерно в десять раз
   apiKey: ""
-  # -- Name of an existing Secret with the NVD API key
+  # -- Имя существующего Secret с ключом API NVD
   existingSecret: ""
-  # -- Key with the API key in `existingSecret`
+  # -- Ключ с ключом API в `existingSecret`
   existingSecretKey: api-key
 
-# Application settings, mapped to AMBER_* environment variables.
+# Настройки сервиса; передаются в переменные окружения AMBER_*.
 config:
-  # -- Port the application listens on
+  # -- Порт, на котором слушает сервис
   port: 8080
-  # -- Parallel SSH sessions (`AMBER_FORKS`). Every fork is a separate Python process (rough estimate: 50-80 MiB each), keep this in line with the memory limit
+  # -- Число параллельных SSH-сессий (`AMBER_FORKS`). Каждая сессия — отдельный процесс Python (оценка: 50–80 MiB), согласуйте с лимитом памяти
   forks: 10
-  # -- SSH connect timeout in seconds (`AMBER_SSH_TIMEOUT`)
+  # -- Таймаут SSH-подключения, с (`AMBER_SSH_TIMEOUT`)
   sshTimeout: 15
-  # -- Maximum duration of one collection job in seconds (`AMBER_JOB_TIMEOUT`)
+  # -- Максимальная длительность одного сбора, с (`AMBER_JOB_TIMEOUT`)
   jobTimeout: 1800
-  # -- Maximum number of addresses nmap may scan in one request (`AMBER_MAX_SCAN_HOSTS`)
+  # -- Максимум адресов в одном запросе на сканирование (`AMBER_MAX_SCAN_HOSTS`)
   maxScanHosts: 4096
-  # -- Vulnerability feed refresh interval in seconds (`AMBER_FEED_TTL`)
+  # -- Интервал обновления баз уязвимостей, с (`AMBER_FEED_TTL`)
   feedTtl: 21600
-  # -- Maximum CVEs enriched from NVD per run (`AMBER_NVD_MAX`)
+  # -- Максимум CVE, запрашиваемых в NVD за один запуск (`AMBER_NVD_MAX`)
   nvdMaxPerRun: 300
-  # -- Comma-separated glob list of packages highlighted in reports (`AMBER_WATCHLIST`). Empty means the built-in list
+  # -- Список наблюдения: исходные пакеты Debian, glob через запятую (`AMBER_WATCHLIST`). Пусто — встроенный список
   watchlist: ""
-  # -- Mirror of the Debian Security Tracker JSON (`AMBER_TRACKER_URL`)
+  # -- Зеркало JSON Debian Security Tracker (`AMBER_TRACKER_URL`)
   trackerUrl: ""
-  # -- Mirror of the CISA KEV catalog (`AMBER_KEV_URL`)
+  # -- Зеркало каталога CISA KEV (`AMBER_KEV_URL`)
   kevUrl: ""
-  # -- Mirror(s) of the EPSS scores file, comma-separated (`AMBER_EPSS_URL`)
+  # -- Зеркала файла EPSS через запятую (`AMBER_EPSS_URL`)
   epssUrl: ""
 
 proxy:
-  # -- `HTTP_PROXY` for feed downloads. Do not put credentials here, use `extraEnvFrom` with a Secret
+  # -- `HTTP_PROXY` для загрузки баз уязвимостей. Учётные данные прокси передавайте через `extraEnvFrom` из Secret, не здесь
   http: ""
-  # -- `HTTPS_PROXY` for feed downloads
+  # -- `HTTPS_PROXY` для загрузки баз уязвимостей
   https: ""
   # -- `NO_PROXY`
   noProxy: ""
 
-# -- Extra environment variables (list of `EnvVar`)
+# -- Дополнительные переменные окружения (список `EnvVar`)
 extraEnv: []
-# -- Extra `envFrom` sources (ConfigMap or Secret references)
+# -- Дополнительные источники `envFrom` (ConfigMap или Secret)
 extraEnvFrom: []
 
-# -- Content of a `known_hosts` file mounted at `~/.ssh/known_hosts`. Needed for the "Verify host key" option
+# -- Содержимое `known_hosts`, монтируется в `~/.ssh/known_hosts`. Нужно для режима «Проверять host key»
 knownHosts: ""
 
 serviceAccount:
-  # -- Create a ServiceAccount
+  # -- Создать ServiceAccount
   create: true
-  # -- Name of the ServiceAccount. Generated from the release name if empty
+  # -- Имя ServiceAccount. Если пусто, формируется из имени релиза
   name: ""
-  # -- ServiceAccount annotations
+  # -- Аннотации ServiceAccount
   annotations: {}
-  # -- Mount the ServiceAccount token. The application does not use the Kubernetes API
+  # -- Монтировать токен ServiceAccount. Сервис не обращается к Kubernetes API
   automount: false
 
-# -- Pod annotations
+# -- Аннотации пода
 podAnnotations: {}
-# -- Pod labels
+# -- Метки пода
 podLabels: {}
 
-# -- Pod security context. UID/GID 10001 is the `amber` user baked into the image
+# -- Контекст безопасности пода. UID/GID 10001 — пользователь `amber` из образа
 podSecurityContext:
   runAsNonRoot: true
   runAsUser: 10001
@@ -114,7 +114,7 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-# -- Container security context. Writable paths (`/data`, `/tmp`, `/home/amber`) are mounted as volumes
+# -- Контекст безопасности контейнера. Каталоги для записи (`/data`, `/tmp`, `/home/amber`) смонтированы как тома
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -122,65 +122,65 @@ securityContext:
     drop:
       - ALL
 
-# -- Run in the node network namespace. Use it when the subnet you scan is reachable from nodes but not from the pod network
+# -- Запускать под в сети узла. Нужно, если подсеть доступна с узлов, но не из сети подов
 hostNetwork: false
-# -- DNS policy. With `hostNetwork: true` and an empty value `ClusterFirstWithHostNet` is used
+# -- Политика DNS. При `hostNetwork: true` и пустом значении используется `ClusterFirstWithHostNet`
 dnsPolicy: ""
 
 service:
-  # -- Service type
+  # -- Тип Service
   type: ClusterIP
-  # -- Service port
+  # -- Порт Service
   port: 80
-  # -- Node port, for `type: NodePort`
+  # -- Порт узла для `type: NodePort`
   nodePort: null
-  # -- Service annotations
+  # -- Аннотации Service
   annotations: {}
 
 ingress:
-  # -- Create an Ingress
+  # -- Создать Ingress
   enabled: false
-  # -- IngressClass name
+  # -- Имя IngressClass
   className: ""
-  # -- Ingress annotations. Uploading the Debian tracker JSON (about 60 MB) needs a larger body limit, for example `nginx.ingress.kubernetes.io/proxy-body-size: 128m`
+  # -- Аннотации Ingress. Для ручной загрузки JSON трекера Debian (около 60 МБ) увеличьте лимит тела запроса, например `nginx.ingress.kubernetes.io/proxy-body-size: 128m`
   annotations: {}
-  # -- Ingress hosts and paths
+  # -- Хосты и пути Ingress
   hosts:
     - host: amberventory.example.com
       paths:
         - path: /
           pathType: Prefix
-  # -- Ingress TLS configuration
+  # -- Настройки TLS для Ingress
   tls: []
 
 httpRoute:
-  # -- Create a Gateway API HTTPRoute
+  # -- Создать HTTPRoute (Gateway API)
   enabled: false
-  # -- HTTPRoute annotations
+  # -- Аннотации HTTPRoute
   annotations: {}
-  # -- Gateways the route attaches to
+  # -- Gateway, к которым подключается маршрут
   parentRefs: []
-  # -- Hostnames matched by the route
+  # -- Имена хостов маршрута
   hostnames: []
-  # -- Route rules. Defaults to forwarding `/` to the Service
+  # -- Правила маршрута. По умолчанию `/` направляется в Service
   rules: []
 
 persistence:
-  # -- Persist `/data` (SSH key, reports, vulnerability database). If disabled an `emptyDir` is used and everything is lost on restart
+  # -- Хранить `/data` (SSH-ключ, отчёты, базы уязвимостей) на постоянном томе. Если выключено, используется `emptyDir` и данные теряются при перезапуске
   enabled: true
-  # -- Use an existing PersistentVolumeClaim
+  # -- Использовать существующий PersistentVolumeClaim
   existingClaim: ""
-  # -- StorageClass. `-` disables dynamic provisioning, empty uses the cluster default
+  # -- StorageClass. `-` отключает динамическое выделение, пусто — класс кластера по умолчанию
   storageClass: ""
-  # -- Access modes. The application must run as a single replica, so `ReadWriteOnce` is enough
+  # -- Режимы доступа. Сервис работает в одной реплике, `ReadWriteOnce` достаточно
   accessModes:
     - ReadWriteOnce
-  # -- Volume size
+  # -- Размер тома
   size: 5Gi
-  # -- PVC annotations. Add `helm.sh/resource-policy: keep` to retain the volume after `helm uninstall`
+  # -- Аннотации PVC. `helm.sh/resource-policy: keep` сохраняет том после `helm uninstall`
   annotations: {}
 
-# -- Resource requests and limits. These are estimates, not measurements: memory grows with `config.forks` and the size of the fleet
+# -- Запросы и лимиты ресурсов. Это оценки, а не замеры: память растёт с `config.forks` и размером парка
 resources:
   requests:
     cpu: 100m
@@ -189,73 +189,73 @@ resources:
     memory: 2Gi
 
 startupProbe:
-  # -- Enable the startup probe
+  # -- Включить startup-пробу
   enabled: true
   httpGet:
-    # -- Startup probe HTTP path
+    # -- HTTP-путь startup-пробы
     path: /healthz
-    # -- Startup probe port (named container port)
+    # -- Порт startup-пробы (имя порта контейнера)
     port: http
-  # -- Startup probe period in seconds
+  # -- Период startup-пробы, с
   periodSeconds: 5
-  # -- Failed startup checks before the container is restarted
+  # -- Число неудачных проверок до перезапуска контейнера
   failureThreshold: 30
 livenessProbe:
-  # -- Enable the liveness probe
+  # -- Включить liveness-пробу
   enabled: true
   httpGet:
-    # -- Liveness probe HTTP path
+    # -- HTTP-путь liveness-пробы
     path: /healthz
-    # -- Liveness probe port (named container port)
+    # -- Порт liveness-пробы (имя порта контейнера)
     port: http
-  # -- Liveness probe period in seconds
+  # -- Период liveness-пробы, с
   periodSeconds: 20
-  # -- Liveness probe timeout in seconds
+  # -- Таймаут liveness-пробы, с
   timeoutSeconds: 5
-  # -- Failed liveness checks before the container is restarted
+  # -- Число неудачных проверок до перезапуска контейнера
   failureThreshold: 3
 readinessProbe:
-  # -- Enable the readiness probe
+  # -- Включить readiness-пробу
   enabled: true
   httpGet:
-    # -- Readiness probe HTTP path
+    # -- HTTP-путь readiness-пробы
     path: /healthz
-    # -- Readiness probe port (named container port)
+    # -- Порт readiness-пробы (имя порта контейнера)
     port: http
-  # -- Readiness probe period in seconds
+  # -- Период readiness-пробы, с
   periodSeconds: 10
-  # -- Readiness probe timeout in seconds
+  # -- Таймаут readiness-пробы, с
   timeoutSeconds: 5
-  # -- Failed readiness checks before the pod is taken out of the Service
+  # -- Число неудачных проверок до исключения пода из Service
   failureThreshold: 3
 
 networkPolicy:
-  # -- Create a NetworkPolicy
+  # -- Создать NetworkPolicy
   enabled: false
-  # -- Sources allowed to reach the application (list of NetworkPolicyPeer). Empty allows all sources
+  # -- Источники, которым разрешён доступ к сервису (список NetworkPolicyPeer). Пусто — разрешены все
   ingressFrom: []
   egress:
-    # -- Allow DNS queries (port 53 TCP/UDP) to any destination
+    # -- Разрешить DNS-запросы (порт 53 TCP/UDP) к любым адресам
     dns: true
-    # -- Destination TCP ports allowed to any address: SSH to the hosts, HTTPS for the vulnerability feeds. Add the ports you scan
+    # -- TCP-порты, разрешённые к любым адресам: SSH к хостам, HTTPS к источникам баз уязвимостей. Добавьте нестандартные SSH-порты
     ports:
       - 22
       - 443
-    # -- Additional egress rules (list of NetworkPolicyEgressRule)
+    # -- Дополнительные правила исходящего трафика (список NetworkPolicyEgressRule)
     extraRules: []
 
-# -- Extra volumes
+# -- Дополнительные тома
 extraVolumes: []
-# -- Extra volume mounts for the application container
+# -- Дополнительные точки монтирования в контейнере
 extraVolumeMounts: []
 
-# -- Pod termination grace period in seconds
+# -- Время на корректное завершение пода, с
 terminationGracePeriodSeconds: 30
-# -- PriorityClass name
+# -- Имя PriorityClass
 priorityClassName: ""
-# -- Node selector
+# -- Селектор узлов
 nodeSelector: {}
 # -- Tolerations
 tolerations: []
-# -- Affinity rules
+# -- Правила affinity
 affinity: {}

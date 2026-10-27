@@ -77,34 +77,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # GHCR creates container packages as private, and GITHUB_TOKEN cannot change their visibility.
-  # Set the repository secret PACKAGES_TOKEN (classic PAT with write:packages, or fine-grained with
-  # Packages: read and write) to make the image public on every publish. Without it, this job is skipped.
-  make-public:
-    name: Make the image public
-    needs: image
-    if: github.ref_type == 'tag' || github.ref_name == 'main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set package visibility to public
-        env:
-          TOKEN: ${{ secrets.PACKAGES_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          OWNER_TYPE: ${{ github.event.repository.owner.type }}
-          PACKAGE: amberventory
-        run: |
-          if [[ -z "${TOKEN}" ]]; then
-            echo "::notice::PACKAGES_TOKEN is not set; skipping. Make the package public once in GitHub UI or add the secret."
-            exit 0
-          fi
-          if [[ "${OWNER_TYPE}" == "Organization" ]]; then base="orgs/${OWNER}"; else base="user"; fi
-          code="$(curl -sS -o /tmp/resp.json -w '%{http_code}' -X PATCH \
-            -H "Authorization: Bearer ${TOKEN}" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/${base}/packages/container/${PACKAGE}/visibility" \
-            -d '{"visibility":"public"}')"
-          echo "HTTP ${code}"
-          if [[ "${code}" != "204" ]]; then cat /tmp/resp.json; exit 1; fi
-
   chart:
     name: Package and push the Helm chart
     if: github.ref_type == 'tag'

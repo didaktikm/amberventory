@@ -1,18 +1,57 @@
 # Релизы
 
-1. Убедитесь, что `main` зелёный (workflow **CI**).
-2. `git tag v0.2.0 && git push origin v0.2.0`.
-3. Workflow **Publish** прогонит CI, соберёт мультиархитектурный образ, опубликует чарт версии `0.2.0` (версия и appVersion берутся из тега) и создаст GitHub Release.
+## Версионирование
 
-Результаты: образ `ghcr.io/didaktikm/amberventory:0.2.0` (`0.2`, `latest`), чарт `oci://ghcr.io/didaktikm/charts/amberventory --version 0.2.0`. Теги с дефисом (`v0.2.0-rc.1`) помечаются как pre-release.
+Версии следуют [Semantic Versioning](https://semver.org/lang/ru/). Образ, чарт и приложение имеют одну версию, которая берётся из тега релиза.
 
-## Публичный образ (`docker pull` без логина)
+| Изменение | Версия |
+|---|---|
+| Несовместимое изменение API, параметров чарта, переменных окружения или формата данных | мажорная (после 1.0) |
+| Новая функциональность без нарушения совместимости | минорная |
+| Исправления | патч |
 
-GHCR создаёт пакет приватным, а `GITHUB_TOKEN` не может менять его видимость. Два варианта:
+До версии 1.0 несовместимые изменения допускаются в минорных версиях и обязательно описываются в [CHANGELOG.md](../CHANGELOG.md) в разделе «Изменено» с указанием необходимых действий.
 
-1. **Автоматически.** Создайте персональный токен (classic с `write:packages`, либо fine-grained с правом Packages: read and write) и сохраните его как секрет репозитория `PACKAGES_TOKEN` (Settings → Secrets and variables → Actions). Job `make-public` в `publish.yml` будет переводить пакет в public на каждой публикации.
-2. **Вручную, один раз.** Packages → `amberventory` → Package settings → Change visibility → Public. Настройка сохраняется для следующих публикаций.
+## Выпуск
 
-Проверка: `docker logout ghcr.io && docker pull ghcr.io/didaktikm/amberventory:latest`.
+1. Убедитесь, что последний прогон CI для `main` успешен.
+2. Перенесите записи из раздела «Не выпущено» в `CHANGELOG.md` в раздел новой версии и закоммитьте.
+3. Создайте аннотированный тег, по возможности подписанный, и отправьте его:
 
-Версии GitHub Actions закреплены мажорными тегами; обновления приходят через Dependabot.
+   ```bash
+   git tag -s v0.2.0 -m "AmberVentory 0.2.0"   # без подписи: git tag -a
+   git push origin v0.2.0
+   ```
+
+4. Workflow **Publish** повторно прогонит CI, соберёт образ для `linux/amd64` и `linux/arm64` с SBOM и provenance, опубликует чарт версии `0.2.0` и создаст GitHub Release.
+
+Результат:
+
+- образ `ghcr.io/didaktikm/amberventory:0.2.0`, а также теги `0.2` и `latest`;
+- чарт `oci://ghcr.io/didaktikm/charts/amberventory`, версия `0.2.0`.
+
+Теги с дефисом (`v0.2.0-rc.1`) публикуются как pre-release. Каждый коммит в `main` публикует образ с тегами `edge` и `sha-<коммит>`.
+
+## Публичный образ
+
+GHCR создаёт пакеты приватными. REST API GitHub не позволяет менять видимость пакета, поэтому это делается вручную, один раз для каждого пакета, после его первой публикации:
+
+1. Packages → `amberventory` → Package settings → Change visibility → Public.
+2. То же для пакета чарта `charts/amberventory` (появляется после первого релиза).
+
+Настройка сохраняется для всех следующих публикаций. Проверка: `docker logout ghcr.io && docker pull ghcr.io/didaktikm/amberventory:latest`.
+
+## Перенос в другую организацию
+
+Пути к образу и чарту содержат владельца репозитория `didaktikm`. При переносе репозитория замените его в файлах:
+
+- `README.md`, `docs/*.md`, `docker-compose.yml`;
+- `deploy/helm/amberventory/values.yaml` (`image.repository`), `Chart.yaml`, `README.md.gotmpl`, затем перегенерируйте README чарта (`helm-docs`).
+
+Найти все вхождения: `git grep -l didaktikm`.
+
+Workflow используют `github.repository` и `github.repository_owner` и правок не требуют.
+
+## Зависимости CI
+
+Версии GitHub Actions закреплены мажорными тегами. Обновления действий, Python-зависимостей и базового образа предлагает Dependabot.

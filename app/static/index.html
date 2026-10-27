@@ -175,7 +175,7 @@
             <label class="field" style="flex:0 1 220px">Пользователь SSH<input type="text" class="mono" id="opt-user" value="root" spellcheck="false"></label>
           </div>
           <div class="opts">
-            <label class="check"><input type="checkbox" id="opt-become"><span>Повышать права через sudo<small>Нужно, если входите не под root: чтение authorized_keys, процессов портов, сертификатов. Требует NOPASSWD.</small></span></label>
+            <label class="check"><input type="checkbox" id="opt-become"><span>Запускать сборщик целиком через sudo<small>Требует sudo без пароля на любые команды. Без этой опции сборщик сам вызывает sudo -n для отдельных команд, если это разрешено (ограниченный sudoers, см. документацию).</small></span></label>
             <label class="check"><input type="checkbox" id="opt-apt"><span>Обновить списки пакетов (apt-get update)<small>Без этого «доступные обновления» берутся из кэша apt на хосте и могут устареть. Меняет только кэш, пакеты не ставятся.</small></span></label>
             <label class="check"><input type="checkbox" id="opt-strict"><span>Проверять host key<small>Включите, если ключи хостов уже лежат в known_hosts контейнера.</small></span></label>
           </div>

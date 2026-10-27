@@ -1,19 +1,21 @@
-# Security policy
+# Политика безопасности
 
-## Reporting a vulnerability
+## Поддерживаемые версии
 
-Please do **not** open a public issue. Use GitHub's private reporting:
-**Security → Report a vulnerability** in this repository.
+Исправления безопасности выпускаются для последней минорной версии.
 
-Include the version (image tag or chart version), a description, and steps to reproduce. You can
-expect an acknowledgement within a few days.
+## Как сообщить об уязвимости
 
-## Threat model in short
+Не создавайте публичный Issue. Используйте закрытое сообщение GitHub: вкладка **Security** → **Report a vulnerability** в этом репозитории.
 
-AmberVentory holds an SSH private key and produces a map of the vulnerabilities in your network.
-Treat it like a jump host:
+Укажите:
 
-- Always enable authentication (`AMBER_USER` / `AMBER_PASSWORD`, or `auth.*` in the Helm chart) and put TLS in front of it.
-- Do not expose it to the internet. Restrict access with a NetworkPolicy or a firewall.
-- Use a dedicated read-only SSH account on the target hosts.
-- The service never writes to the scanned hosts (except the apt cache if you opt in to `apt-get update`).
+- версию (тег образа или версию чарта);
+- описание уязвимости и её последствия;
+- шаги воспроизведения.
+
+Сообщение получает владелец сервиса — отдел DevOps Amber Data. Мы подтверждаем получение и сообщаем о ходе исправления в той же переписке.
+
+## Рекомендации по эксплуатации
+
+Модель угроз, хранение секретов и рекомендации по усилению защиты описаны в [docs/security.md](docs/security.md).

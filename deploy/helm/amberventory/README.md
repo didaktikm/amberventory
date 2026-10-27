@@ -2,84 +2,81 @@
 
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
 
-Debian fleet inventory and vulnerability report (Ansible, nmap, Debian Security Tracker, CISA KEV, EPSS) with a web UI
+Helm-чарт сервиса AmberVentory: инвентаризация парка Debian и оценка уязвимостей.
 
 **Homepage:** <https://github.com/didaktikm/amberventory>
 
-## TL;DR
+Общая документация сервиса: [README](https://github.com/didaktikm/amberventory#readme), развёртывание — [docs/deployment.md](https://github.com/didaktikm/amberventory/blob/main/docs/deployment.md).
+
+## Требования
+
+- Kubernetes >=1.25.0-0
+- Helm 3.8+ (поддержка OCI) или Helm 4
+- StorageClass с томами `ReadWriteOnce` или готовый PVC (`persistence.existingClaim`)
+- Сетевой доступ из пода к хостам по SSH и к источникам баз уязвимостей по HTTPS (или к их внутренним зеркалам): [перечень адресов](https://github.com/didaktikm/amberventory/blob/main/docs/requirements.md#сеть)
+
+## Установка
+
+Учётные данные храните в Secret, параметры — в values-файле:
 
 ```bash
-helm install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
-  --namespace amberventory --create-namespace
+kubectl create namespace amberventory
+kubectl -n amberventory create secret generic amberventory-credentials \
+  --from-literal=username=admin \
+  --from-literal=password="$(openssl rand -base64 24)"
+
+helm upgrade --install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
+  --version 0.1.0 --namespace amberventory \
+  --set auth.existingSecret=amberventory-credentials
+helm test amberventory -n amberventory
 ```
 
-The chart creates a Deployment (one replica), a Service, a PersistentVolumeClaim for `/data`
-and a Secret with a generated admin password. Print the password and open the interface:
+Доступ без Ingress, для проверки:
 
 ```bash
-kubectl -n amberventory get secret amberventory -o jsonpath='{.data.password}' | base64 -d; echo
 kubectl -n amberventory port-forward svc/amberventory 8080:80
 ```
 
-## Requirements
+## Принятые решения
 
-- Kubernetes >=1.25.0-0
-- Helm 3.8+ (OCI registries) or Helm 4
-- A StorageClass that can provide a `ReadWriteOnce` volume (or `persistence.existingClaim`)
-- Network paths from the pod to the hosts you want to inventory (SSH, port 22 by default) and, for the
-  vulnerability feeds, HTTPS access to `security-tracker.debian.org`, `www.cisa.gov` and `epss.empiricalsecurity.com`
-  (or mirrors, see `config.trackerUrl`, `config.kevUrl`, `config.epssUrl`)
-
-## Design decisions
-
-| Topic | What the chart does and why |
+| Решение | Причина |
 |---|---|
-| **One replica, `Recreate`** | The application keeps job state and the unlocked SSH key passphrase in memory and stores data in SQLite on a single volume. Two replicas would not share state, and a rolling update would try to mount a `ReadWriteOnce` volume twice. There is no `replicaCount`, HPA or PodDisruptionBudget on purpose. |
-| **Authentication on by default** | AmberVentory holds a private SSH key that opens every host in the inventory and can run nmap. The chart enables HTTP basic auth and generates a random password. Disabling it prints a warning in the release notes. |
-| **Hardened pod** | Non-root (UID 10001), read-only root filesystem, all capabilities dropped, `RuntimeDefault` seccomp, no ServiceAccount token. Writable paths `/data`, `/tmp` and `/home/amber` are volumes. nmap runs as an unprivileged user and falls back to a TCP connect scan, which is all that port discovery needs. |
-| **Rollout on config change** | Checksums of the ConfigMap and the Secret are pod annotations, so changing values restarts the pod. |
-| **Optional Gateway API** | Set `httpRoute.enabled` to use an `HTTPRoute` instead of an Ingress. |
+| **Одна реплика, стратегия `Recreate`** | Состояние выполняющихся сборов и passphrase SSH-ключа хранятся в памяти процесса, данные — в SQLite на одном томе. Вторая реплика не увидит это состояние, а rolling update попытается смонтировать том `ReadWriteOnce` дважды. Поэтому в чарте нет `replicaCount`, HPA и PodDisruptionBudget. |
+| **Аутентификация включена по умолчанию** | Сервис хранит SSH-ключ с доступом ко всем хостам. Если не заданы `auth.password` и `auth.existingSecret`, чарт генерирует случайный пароль. При отключении аутентификации NOTES выводят предупреждение. |
+| **Усиленная конфигурация пода** | Непривилегированный пользователь (UID 10001), корневая файловая система только для чтения, сброшены все capabilities, профиль seccomp `RuntimeDefault`, токен ServiceAccount не монтируется. Каталоги `/data`, `/tmp` и `/home/amber` — тома. nmap без привилегий использует TCP connect scan, этого достаточно для поиска SSH. |
+| **Перезапуск при изменении настроек** | Контрольные суммы ConfigMap и Secret вынесены в аннотации пода. |
+| **Gateway API как опция** | `httpRoute.enabled` создаёт `HTTPRoute` вместо Ingress. |
 
-## Common tasks
+## Типовые задачи
 
-### Expose through an Ingress with TLS
+### Ingress с TLS
 
 ```yaml
 ingress:
   enabled: true
   className: nginx
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
-    # Needed only to upload the Debian tracker JSON (about 60 MB) by hand in an air-gapped setup
+    cert-manager.io/cluster-issuer: corp-ca
+    # Только для ручной загрузки JSON трекера Debian (около 60 МБ) в изолированном контуре
     nginx.ingress.kubernetes.io/proxy-body-size: 128m
   hosts:
-    - host: amberventory.example.com
+    - host: inventory.corp.local
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: amberventory-tls
       hosts:
-        - amberventory.example.com
+        - inventory.corp.local
 ```
 
-### Provide your own credentials
+### Argo CD, Flux и `helm template`
 
-```bash
-kubectl -n amberventory create secret generic amberventory-credentials \
-  --from-literal=username=admin --from-literal=password='...'
-helm upgrade --install amberventory oci://ghcr.io/didaktikm/charts/amberventory -n amberventory \
-  --set auth.existingSecret=amberventory-credentials
-```
+Задавайте `auth.existingSecret` или `auth.password`. Автогенерация пароля использует `lookup`, который в этих инструментах не работает: пароль будет меняться при каждой отрисовке.
 
-With Argo CD, Flux or `helm template` always set `auth.password` or `auth.existingSecret`:
-the chart generates a random password with `lookup`, which these tools cannot do, so the value
-would change on every render.
+### Подсеть недоступна из сети подов
 
-### Scan a network the pod cannot reach
-
-Pods usually sit in an overlay network. If the subnet is reachable from the nodes but not from the pod network,
-run the pod in the node network and pin it to a suitable node:
+Запустите под в сети узла и закрепите его на узле с доступом к нужной подсети:
 
 ```yaml
 hostNetwork: true
@@ -87,9 +84,9 @@ nodeSelector:
   kubernetes.io/hostname: node-in-the-right-vlan
 ```
 
-The application then listens on `config.port` of that node, so restrict access with a firewall or a NetworkPolicy.
+Сервис будет слушать `config.port` на всех интерфейсах узла: ограничьте доступ к порту межсетевым экраном.
 
-### Restrict network access
+### Ограничение сетевого доступа
 
 ```yaml
 networkPolicy:
@@ -99,24 +96,22 @@ networkPolicy:
         matchLabels:
           kubernetes.io/metadata.name: ingress-nginx
   egress:
-    ports: [22, 443]   # add the SSH ports you actually use
+    ports: [22, 443]   # добавьте нестандартные SSH-порты хостов
 ```
 
-### Use a private registry or a private GHCR package
+### Приватный реестр или приватный пакет GHCR
 
-A package published to the GitHub Container Registry is private until you change its visibility.
-Either make the package public or create a pull secret:
+Пакет в GitHub Container Registry приватный, пока его видимость не изменена. Создайте секрет для загрузки образа:
 
 ```bash
 kubectl -n amberventory create secret docker-registry ghcr \
-  --docker-server=ghcr.io --docker-username=<user> --docker-password=<token with read:packages>
+  --docker-server=ghcr.io --docker-username=<пользователь> --docker-password=<токен с read:packages>
 helm upgrade --install amberventory ... --set 'imagePullSecrets[0].name=ghcr'
 ```
 
-### Verify host keys
+### Проверка ключей хостов
 
-Put the output of `ssh-keyscan` for your hosts into `knownHosts`, then tick *Verify host key*
-in the web interface:
+Передайте ключи хостов, полученные доверенным способом, и включите «Проверять host key» при запуске сбора:
 
 ```yaml
 knownHosts: |
@@ -124,119 +119,118 @@ knownHosts: |
   10.0.0.12 ssh-ed25519 AAAA...
 ```
 
-### The SSH key
+### SSH-ключ
 
-The key is uploaded through the web interface and stored in `/data/keys` on the persistent volume
-(mode 600). It is not part of the chart values. Without persistence it has to be uploaded again
-after every restart.
+Ключ загружается через веб-интерфейс и хранится в `/data/keys` на постоянном томе с правами 600. В параметры чарта он не входит. Без постоянного тома ключ придётся загружать после каждого перезапуска.
 
-## Upgrade, test, uninstall
+## Обновление, проверка, удаление
 
 ```bash
-helm upgrade amberventory oci://ghcr.io/didaktikm/charts/amberventory -n amberventory --reuse-values
-helm test amberventory -n amberventory      # calls /healthz from inside the cluster
-helm uninstall amberventory -n amberventory # the PVC is removed with the release unless annotated with helm.sh/resource-policy: keep
+helm upgrade amberventory oci://ghcr.io/didaktikm/charts/amberventory --version <версия> -n amberventory -f values.yaml
+helm test amberventory -n amberventory       # запрос /healthz изнутри кластера
+helm uninstall amberventory -n amberventory  # PVC удаляется, если нет аннотации helm.sh/resource-policy: keep
 ```
 
-## Values
+Резервное копирование и откат: [docs/operations.md](https://github.com/didaktikm/amberventory/blob/main/docs/operations.md).
 
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| affinity | object | `{}` | Affinity rules |
-| auth.enabled | bool | `true` | Enable HTTP basic authentication in the application (`/healthz` stays open for probes) |
-| auth.existingSecret | string | `""` | Name of an existing Secret with the credentials |
-| auth.existingSecretPasswordKey | string | `"password"` | Key with the password in `existingSecret` |
-| auth.existingSecretUserKey | string | `"username"` | Key with the username in `existingSecret` |
-| auth.password | string | `""` | Password. If empty, a random one is generated on first install and kept on upgrades (only works with `helm install/upgrade`. For `helm template`/GitOps set a value or `existingSecret`) |
-| auth.username | string | `"admin"` | Username. Ignored when `existingSecret` is set |
-| commonAnnotations | object | `{}` | Annotations added to every resource |
-| commonLabels | object | `{}` | Labels added to every resource |
-| config.epssUrl | string | `""` | Mirror(s) of the EPSS scores file, comma-separated (`AMBER_EPSS_URL`) |
-| config.feedTtl | int | `21600` | Vulnerability feed refresh interval in seconds (`AMBER_FEED_TTL`) |
-| config.forks | int | `10` | Parallel SSH sessions (`AMBER_FORKS`). Every fork is a separate Python process (rough estimate: 50-80 MiB each), keep this in line with the memory limit |
-| config.jobTimeout | int | `1800` | Maximum duration of one collection job in seconds (`AMBER_JOB_TIMEOUT`) |
-| config.kevUrl | string | `""` | Mirror of the CISA KEV catalog (`AMBER_KEV_URL`) |
-| config.maxScanHosts | int | `4096` | Maximum number of addresses nmap may scan in one request (`AMBER_MAX_SCAN_HOSTS`) |
-| config.nvdMaxPerRun | int | `300` | Maximum CVEs enriched from NVD per run (`AMBER_NVD_MAX`) |
-| config.port | int | `8080` | Port the application listens on |
-| config.sshTimeout | int | `15` | SSH connect timeout in seconds (`AMBER_SSH_TIMEOUT`) |
-| config.trackerUrl | string | `""` | Mirror of the Debian Security Tracker JSON (`AMBER_TRACKER_URL`) |
-| config.watchlist | string | `""` | Comma-separated glob list of packages highlighted in reports (`AMBER_WATCHLIST`). Empty means the built-in list |
-| dnsPolicy | string | `""` | DNS policy. With `hostNetwork: true` and an empty value `ClusterFirstWithHostNet` is used |
-| extraEnv | list | `[]` | Extra environment variables (list of `EnvVar`) |
-| extraEnvFrom | list | `[]` | Extra `envFrom` sources (ConfigMap or Secret references) |
-| extraVolumeMounts | list | `[]` | Extra volume mounts for the application container |
-| extraVolumes | list | `[]` | Extra volumes |
-| fullnameOverride | string | `""` | Override the full resource name |
-| hostNetwork | bool | `false` | Run in the node network namespace. Use it when the subnet you scan is reachable from nodes but not from the pod network |
-| httpRoute.annotations | object | `{}` | HTTPRoute annotations |
-| httpRoute.enabled | bool | `false` | Create a Gateway API HTTPRoute |
-| httpRoute.hostnames | list | `[]` | Hostnames matched by the route |
-| httpRoute.parentRefs | list | `[]` | Gateways the route attaches to |
-| httpRoute.rules | list | `[]` | Route rules. Defaults to forwarding `/` to the Service |
-| image.digest | string | `""` | Image digest (`sha256:...`). Takes precedence over `tag` when set |
-| image.pullPolicy | string | `"IfNotPresent"` | Image pull policy |
-| image.repository | string | `"ghcr.io/didaktikm/amberventory"` | Image repository |
-| image.tag | string | `""` | Image tag. Defaults to the chart `appVersion` |
-| imagePullSecrets | list | `[]` | Pull secrets for a private registry. A new GitHub Container Registry package is private until you make it public |
-| ingress.annotations | object | `{}` | Ingress annotations. Uploading the Debian tracker JSON (about 60 MB) needs a larger body limit, for example `nginx.ingress.kubernetes.io/proxy-body-size: 128m` |
-| ingress.className | string | `""` | IngressClass name |
-| ingress.enabled | bool | `false` | Create an Ingress |
-| ingress.hosts | list | `[{"host":"amberventory.example.com","paths":[{"path":"/","pathType":"Prefix"}]}]` | Ingress hosts and paths |
-| ingress.tls | list | `[]` | Ingress TLS configuration |
-| knownHosts | string | `""` | Content of a `known_hosts` file mounted at `~/.ssh/known_hosts`. Needed for the "Verify host key" option |
-| livenessProbe.enabled | bool | `true` | Enable the liveness probe |
-| livenessProbe.failureThreshold | int | `3` | Failed liveness checks before the container is restarted |
-| livenessProbe.httpGet.path | string | `"/healthz"` | Liveness probe HTTP path |
-| livenessProbe.httpGet.port | string | `"http"` | Liveness probe port (named container port) |
-| livenessProbe.periodSeconds | int | `20` | Liveness probe period in seconds |
-| livenessProbe.timeoutSeconds | int | `5` | Liveness probe timeout in seconds |
-| nameOverride | string | `""` | Override the chart name used in resource names |
-| networkPolicy.egress.dns | bool | `true` | Allow DNS queries (port 53 TCP/UDP) to any destination |
-| networkPolicy.egress.extraRules | list | `[]` | Additional egress rules (list of NetworkPolicyEgressRule) |
-| networkPolicy.egress.ports | list | `[22,443]` | Destination TCP ports allowed to any address: SSH to the hosts, HTTPS for the vulnerability feeds. Add the ports you scan |
-| networkPolicy.enabled | bool | `false` | Create a NetworkPolicy |
-| networkPolicy.ingressFrom | list | `[]` | Sources allowed to reach the application (list of NetworkPolicyPeer). Empty allows all sources |
-| nodeSelector | object | `{}` | Node selector |
-| nvd.apiKey | string | `""` | NVD API key. Optional: speeds up CVSS enrichment about ten times |
-| nvd.existingSecret | string | `""` | Name of an existing Secret with the NVD API key |
-| nvd.existingSecretKey | string | `"api-key"` | Key with the API key in `existingSecret` |
-| persistence.accessModes | list | `["ReadWriteOnce"]` | Access modes. The application must run as a single replica, so `ReadWriteOnce` is enough |
-| persistence.annotations | object | `{}` | PVC annotations. Add `helm.sh/resource-policy: keep` to retain the volume after `helm uninstall` |
-| persistence.enabled | bool | `true` | Persist `/data` (SSH key, reports, vulnerability database). If disabled an `emptyDir` is used and everything is lost on restart |
-| persistence.existingClaim | string | `""` | Use an existing PersistentVolumeClaim |
-| persistence.size | string | `"5Gi"` | Volume size |
-| persistence.storageClass | string | `""` | StorageClass. `-` disables dynamic provisioning, empty uses the cluster default |
-| podAnnotations | object | `{}` | Pod annotations |
-| podLabels | object | `{}` | Pod labels |
-| podSecurityContext | object | `{"fsGroup":10001,"fsGroupChangePolicy":"OnRootMismatch","runAsGroup":10001,"runAsNonRoot":true,"runAsUser":10001,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod security context. UID/GID 10001 is the `amber` user baked into the image |
-| priorityClassName | string | `""` | PriorityClass name |
-| proxy.http | string | `""` | `HTTP_PROXY` for feed downloads. Do not put credentials here, use `extraEnvFrom` with a Secret |
-| proxy.https | string | `""` | `HTTPS_PROXY` for feed downloads |
+## Параметры
+
+| Параметр | Тип | По умолчанию | Описание |
+|----------|-----|--------------|----------|
+| affinity | object | `{}` | Правила affinity |
+| auth.enabled | bool | `true` | Включить HTTP basic auth (`/healthz` остаётся открытым для проб) |
+| auth.existingSecret | string | `""` | Имя существующего Secret с учётными данными |
+| auth.existingSecretPasswordKey | string | `"password"` | Ключ с паролем в `existingSecret` |
+| auth.existingSecretUserKey | string | `"username"` | Ключ с именем пользователя в `existingSecret` |
+| auth.password | string | `""` | Пароль. Если пусто, при первой установке генерируется случайный и сохраняется при обновлениях (только для `helm install/upgrade`; для `helm template` и GitOps задайте значение или `existingSecret`) |
+| auth.username | string | `"admin"` | Имя пользователя. Не используется, если задан `existingSecret` |
+| commonAnnotations | object | `{}` | Аннотации для всех ресурсов |
+| commonLabels | object | `{}` | Метки для всех ресурсов |
+| config.epssUrl | string | `""` | Зеркала файла EPSS через запятую (`AMBER_EPSS_URL`) |
+| config.feedTtl | int | `21600` | Интервал обновления баз уязвимостей, с (`AMBER_FEED_TTL`) |
+| config.forks | int | `10` | Число параллельных SSH-сессий (`AMBER_FORKS`). Каждая сессия — отдельный процесс Python (оценка: 50–80 MiB), согласуйте с лимитом памяти |
+| config.jobTimeout | int | `1800` | Максимальная длительность одного сбора, с (`AMBER_JOB_TIMEOUT`) |
+| config.kevUrl | string | `""` | Зеркало каталога CISA KEV (`AMBER_KEV_URL`) |
+| config.maxScanHosts | int | `4096` | Максимум адресов в одном запросе на сканирование (`AMBER_MAX_SCAN_HOSTS`) |
+| config.nvdMaxPerRun | int | `300` | Максимум CVE, запрашиваемых в NVD за один запуск (`AMBER_NVD_MAX`) |
+| config.port | int | `8080` | Порт, на котором слушает сервис |
+| config.sshTimeout | int | `15` | Таймаут SSH-подключения, с (`AMBER_SSH_TIMEOUT`) |
+| config.trackerUrl | string | `""` | Зеркало JSON Debian Security Tracker (`AMBER_TRACKER_URL`) |
+| config.watchlist | string | `""` | Список наблюдения: исходные пакеты Debian, glob через запятую (`AMBER_WATCHLIST`). Пусто — встроенный список |
+| dnsPolicy | string | `""` | Политика DNS. При `hostNetwork: true` и пустом значении используется `ClusterFirstWithHostNet` |
+| extraEnv | list | `[]` | Дополнительные переменные окружения (список `EnvVar`) |
+| extraEnvFrom | list | `[]` | Дополнительные источники `envFrom` (ConfigMap или Secret) |
+| extraVolumeMounts | list | `[]` | Дополнительные точки монтирования в контейнере |
+| extraVolumes | list | `[]` | Дополнительные тома |
+| fullnameOverride | string | `""` | Заменяет полное имя ресурсов |
+| hostNetwork | bool | `false` | Запускать под в сети узла. Нужно, если подсеть доступна с узлов, но не из сети подов |
+| httpRoute.annotations | object | `{}` | Аннотации HTTPRoute |
+| httpRoute.enabled | bool | `false` | Создать HTTPRoute (Gateway API) |
+| httpRoute.hostnames | list | `[]` | Имена хостов маршрута |
+| httpRoute.parentRefs | list | `[]` | Gateway, к которым подключается маршрут |
+| httpRoute.rules | list | `[]` | Правила маршрута. По умолчанию `/` направляется в Service |
+| image.digest | string | `""` | Digest образа (`sha256:...`). Если задан, используется вместо `tag` |
+| image.pullPolicy | string | `"IfNotPresent"` | Политика загрузки образа |
+| image.repository | string | `"ghcr.io/didaktikm/amberventory"` | Репозиторий образа |
+| image.tag | string | `""` | Тег образа. По умолчанию `appVersion` чарта |
+| imagePullSecrets | list | `[]` | Секреты для загрузки образа из приватного реестра. Новый пакет в GitHub Container Registry приватный, пока его видимость не изменена |
+| ingress.annotations | object | `{}` | Аннотации Ingress. Для ручной загрузки JSON трекера Debian (около 60 МБ) увеличьте лимит тела запроса, например `nginx.ingress.kubernetes.io/proxy-body-size: 128m` |
+| ingress.className | string | `""` | Имя IngressClass |
+| ingress.enabled | bool | `false` | Создать Ingress |
+| ingress.hosts | list | `[{"host":"amberventory.example.com","paths":[{"path":"/","pathType":"Prefix"}]}]` | Хосты и пути Ingress |
+| ingress.tls | list | `[]` | Настройки TLS для Ingress |
+| knownHosts | string | `""` | Содержимое `known_hosts`, монтируется в `~/.ssh/known_hosts`. Нужно для режима «Проверять host key» |
+| livenessProbe.enabled | bool | `true` | Включить liveness-пробу |
+| livenessProbe.failureThreshold | int | `3` | Число неудачных проверок до перезапуска контейнера |
+| livenessProbe.httpGet.path | string | `"/healthz"` | HTTP-путь liveness-пробы |
+| livenessProbe.httpGet.port | string | `"http"` | Порт liveness-пробы (имя порта контейнера) |
+| livenessProbe.periodSeconds | int | `20` | Период liveness-пробы, с |
+| livenessProbe.timeoutSeconds | int | `5` | Таймаут liveness-пробы, с |
+| nameOverride | string | `""` | Заменяет имя чарта в именах ресурсов |
+| networkPolicy.egress.dns | bool | `true` | Разрешить DNS-запросы (порт 53 TCP/UDP) к любым адресам |
+| networkPolicy.egress.extraRules | list | `[]` | Дополнительные правила исходящего трафика (список NetworkPolicyEgressRule) |
+| networkPolicy.egress.ports | list | `[22,443]` | TCP-порты, разрешённые к любым адресам: SSH к хостам, HTTPS к источникам баз уязвимостей. Добавьте нестандартные SSH-порты |
+| networkPolicy.enabled | bool | `false` | Создать NetworkPolicy |
+| networkPolicy.ingressFrom | list | `[]` | Источники, которым разрешён доступ к сервису (список NetworkPolicyPeer). Пусто — разрешены все |
+| nodeSelector | object | `{}` | Селектор узлов |
+| nvd.apiKey | string | `""` | Ключ API NVD. Необязательный: ускоряет загрузку CVSS примерно в десять раз |
+| nvd.existingSecret | string | `""` | Имя существующего Secret с ключом API NVD |
+| nvd.existingSecretKey | string | `"api-key"` | Ключ с ключом API в `existingSecret` |
+| persistence.accessModes | list | `["ReadWriteOnce"]` | Режимы доступа. Сервис работает в одной реплике, `ReadWriteOnce` достаточно |
+| persistence.annotations | object | `{}` | Аннотации PVC. `helm.sh/resource-policy: keep` сохраняет том после `helm uninstall` |
+| persistence.enabled | bool | `true` | Хранить `/data` (SSH-ключ, отчёты, базы уязвимостей) на постоянном томе. Если выключено, используется `emptyDir` и данные теряются при перезапуске |
+| persistence.existingClaim | string | `""` | Использовать существующий PersistentVolumeClaim |
+| persistence.size | string | `"5Gi"` | Размер тома |
+| persistence.storageClass | string | `""` | StorageClass. `-` отключает динамическое выделение, пусто — класс кластера по умолчанию |
+| podAnnotations | object | `{}` | Аннотации пода |
+| podLabels | object | `{}` | Метки пода |
+| podSecurityContext | object | `{"fsGroup":10001,"fsGroupChangePolicy":"OnRootMismatch","runAsGroup":10001,"runAsNonRoot":true,"runAsUser":10001,"seccompProfile":{"type":"RuntimeDefault"}}` | Контекст безопасности пода. UID/GID 10001 — пользователь `amber` из образа |
+| priorityClassName | string | `""` | Имя PriorityClass |
+| proxy.http | string | `""` | `HTTP_PROXY` для загрузки баз уязвимостей. Учётные данные прокси передавайте через `extraEnvFrom` из Secret, не здесь |
+| proxy.https | string | `""` | `HTTPS_PROXY` для загрузки баз уязвимостей |
 | proxy.noProxy | string | `""` | `NO_PROXY` |
-| readinessProbe.enabled | bool | `true` | Enable the readiness probe |
-| readinessProbe.failureThreshold | int | `3` | Failed readiness checks before the pod is taken out of the Service |
-| readinessProbe.httpGet.path | string | `"/healthz"` | Readiness probe HTTP path |
-| readinessProbe.httpGet.port | string | `"http"` | Readiness probe port (named container port) |
-| readinessProbe.periodSeconds | int | `10` | Readiness probe period in seconds |
-| readinessProbe.timeoutSeconds | int | `5` | Readiness probe timeout in seconds |
-| resources | object | `{"limits":{"memory":"2Gi"},"requests":{"cpu":"100m","memory":"512Mi"}}` | Resource requests and limits. These are estimates, not measurements: memory grows with `config.forks` and the size of the fleet |
-| securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` | Container security context. Writable paths (`/data`, `/tmp`, `/home/amber`) are mounted as volumes |
-| service.annotations | object | `{}` | Service annotations |
-| service.nodePort | string | `nil` | Node port, for `type: NodePort` |
-| service.port | int | `80` | Service port |
-| service.type | string | `"ClusterIP"` | Service type |
-| serviceAccount.annotations | object | `{}` | ServiceAccount annotations |
-| serviceAccount.automount | bool | `false` | Mount the ServiceAccount token. The application does not use the Kubernetes API |
-| serviceAccount.create | bool | `true` | Create a ServiceAccount |
-| serviceAccount.name | string | `""` | Name of the ServiceAccount. Generated from the release name if empty |
-| startupProbe.enabled | bool | `true` | Enable the startup probe |
-| startupProbe.failureThreshold | int | `30` | Failed startup checks before the container is restarted |
-| startupProbe.httpGet.path | string | `"/healthz"` | Startup probe HTTP path |
-| startupProbe.httpGet.port | string | `"http"` | Startup probe port (named container port) |
-| startupProbe.periodSeconds | int | `5` | Startup probe period in seconds |
-| terminationGracePeriodSeconds | int | `30` | Pod termination grace period in seconds |
+| readinessProbe.enabled | bool | `true` | Включить readiness-пробу |
+| readinessProbe.failureThreshold | int | `3` | Число неудачных проверок до исключения пода из Service |
+| readinessProbe.httpGet.path | string | `"/healthz"` | HTTP-путь readiness-пробы |
+| readinessProbe.httpGet.port | string | `"http"` | Порт readiness-пробы (имя порта контейнера) |
+| readinessProbe.periodSeconds | int | `10` | Период readiness-пробы, с |
+| readinessProbe.timeoutSeconds | int | `5` | Таймаут readiness-пробы, с |
+| resources | object | `{"limits":{"memory":"2Gi"},"requests":{"cpu":"100m","memory":"512Mi"}}` | Запросы и лимиты ресурсов. Это оценки, а не замеры: память растёт с `config.forks` и размером парка |
+| securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` | Контекст безопасности контейнера. Каталоги для записи (`/data`, `/tmp`, `/home/amber`) смонтированы как тома |
+| service.annotations | object | `{}` | Аннотации Service |
+| service.nodePort | string | `nil` | Порт узла для `type: NodePort` |
+| service.port | int | `80` | Порт Service |
+| service.type | string | `"ClusterIP"` | Тип Service |
+| serviceAccount.annotations | object | `{}` | Аннотации ServiceAccount |
+| serviceAccount.automount | bool | `false` | Монтировать токен ServiceAccount. Сервис не обращается к Kubernetes API |
+| serviceAccount.create | bool | `true` | Создать ServiceAccount |
+| serviceAccount.name | string | `""` | Имя ServiceAccount. Если пусто, формируется из имени релиза |
+| startupProbe.enabled | bool | `true` | Включить startup-пробу |
+| startupProbe.failureThreshold | int | `30` | Число неудачных проверок до перезапуска контейнера |
+| startupProbe.httpGet.path | string | `"/healthz"` | HTTP-путь startup-пробы |
+| startupProbe.httpGet.port | string | `"http"` | Порт startup-пробы (имя порта контейнера) |
+| startupProbe.periodSeconds | int | `5` | Период startup-пробы, с |
+| terminationGracePeriodSeconds | int | `30` | Время на корректное завершение пода, с |
 | tolerations | list | `[]` | Tolerations |
 
-----------------------------------------------
-Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)
+Файл сгенерирован [helm-docs](https://github.com/norwoodj/helm-docs) из `values.yaml` и `README.md.gotmpl`; правьте их, а не этот файл.

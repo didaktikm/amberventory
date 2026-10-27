@@ -2,84 +2,81 @@
 
 {{ template "chart.badgesSection" . }}
 
-{{ template "chart.description" . }}
+Helm-чарт сервиса AmberVentory: инвентаризация парка Debian и оценка уязвимостей.
 
 {{ template "chart.homepageLine" . }}
 
-## TL;DR
+Общая документация сервиса: [README](https://github.com/didaktikm/amberventory#readme), развёртывание — [docs/deployment.md](https://github.com/didaktikm/amberventory/blob/main/docs/deployment.md).
+
+## Требования
+
+- Kubernetes {{ template "chart.kubeVersion" . }}
+- Helm 3.8+ (поддержка OCI) или Helm 4
+- StorageClass с томами `ReadWriteOnce` или готовый PVC (`persistence.existingClaim`)
+- Сетевой доступ из пода к хостам по SSH и к источникам баз уязвимостей по HTTPS (или к их внутренним зеркалам): [перечень адресов](https://github.com/didaktikm/amberventory/blob/main/docs/requirements.md#сеть)
+
+## Установка
+
+Учётные данные храните в Secret, параметры — в values-файле:
 
 ```bash
-helm install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
-  --namespace amberventory --create-namespace
+kubectl create namespace amberventory
+kubectl -n amberventory create secret generic amberventory-credentials \
+  --from-literal=username=admin \
+  --from-literal=password="$(openssl rand -base64 24)"
+
+helm upgrade --install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
+  --version {{ template "chart.version" . }} --namespace amberventory \
+  --set auth.existingSecret=amberventory-credentials
+helm test amberventory -n amberventory
 ```
 
-The chart creates a Deployment (one replica), a Service, a PersistentVolumeClaim for `/data`
-and a Secret with a generated admin password. Print the password and open the interface:
+Доступ без Ingress, для проверки:
 
 ```bash
-kubectl -n amberventory get secret amberventory -o jsonpath='{.data.password}' | base64 -d; echo
 kubectl -n amberventory port-forward svc/amberventory 8080:80
 ```
 
-## Requirements
+## Принятые решения
 
-- Kubernetes {{ template "chart.kubeVersion" . }}
-- Helm 3.8+ (OCI registries) or Helm 4
-- A StorageClass that can provide a `ReadWriteOnce` volume (or `persistence.existingClaim`)
-- Network paths from the pod to the hosts you want to inventory (SSH, port 22 by default) and, for the
-  vulnerability feeds, HTTPS access to `security-tracker.debian.org`, `www.cisa.gov` and `epss.empiricalsecurity.com`
-  (or mirrors, see `config.trackerUrl`, `config.kevUrl`, `config.epssUrl`)
-
-## Design decisions
-
-| Topic | What the chart does and why |
+| Решение | Причина |
 |---|---|
-| **One replica, `Recreate`** | The application keeps job state and the unlocked SSH key passphrase in memory and stores data in SQLite on a single volume. Two replicas would not share state, and a rolling update would try to mount a `ReadWriteOnce` volume twice. There is no `replicaCount`, HPA or PodDisruptionBudget on purpose. |
-| **Authentication on by default** | AmberVentory holds a private SSH key that opens every host in the inventory and can run nmap. The chart enables HTTP basic auth and generates a random password. Disabling it prints a warning in the release notes. |
-| **Hardened pod** | Non-root (UID 10001), read-only root filesystem, all capabilities dropped, `RuntimeDefault` seccomp, no ServiceAccount token. Writable paths `/data`, `/tmp` and `/home/amber` are volumes. nmap runs as an unprivileged user and falls back to a TCP connect scan, which is all that port discovery needs. |
-| **Rollout on config change** | Checksums of the ConfigMap and the Secret are pod annotations, so changing values restarts the pod. |
-| **Optional Gateway API** | Set `httpRoute.enabled` to use an `HTTPRoute` instead of an Ingress. |
+| **Одна реплика, стратегия `Recreate`** | Состояние выполняющихся сборов и passphrase SSH-ключа хранятся в памяти процесса, данные — в SQLite на одном томе. Вторая реплика не увидит это состояние, а rolling update попытается смонтировать том `ReadWriteOnce` дважды. Поэтому в чарте нет `replicaCount`, HPA и PodDisruptionBudget. |
+| **Аутентификация включена по умолчанию** | Сервис хранит SSH-ключ с доступом ко всем хостам. Если не заданы `auth.password` и `auth.existingSecret`, чарт генерирует случайный пароль. При отключении аутентификации NOTES выводят предупреждение. |
+| **Усиленная конфигурация пода** | Непривилегированный пользователь (UID 10001), корневая файловая система только для чтения, сброшены все capabilities, профиль seccomp `RuntimeDefault`, токен ServiceAccount не монтируется. Каталоги `/data`, `/tmp` и `/home/amber` — тома. nmap без привилегий использует TCP connect scan, этого достаточно для поиска SSH. |
+| **Перезапуск при изменении настроек** | Контрольные суммы ConfigMap и Secret вынесены в аннотации пода. |
+| **Gateway API как опция** | `httpRoute.enabled` создаёт `HTTPRoute` вместо Ingress. |
 
-## Common tasks
+## Типовые задачи
 
-### Expose through an Ingress with TLS
+### Ingress с TLS
 
 ```yaml
 ingress:
   enabled: true
   className: nginx
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
-    # Needed only to upload the Debian tracker JSON (about 60 MB) by hand in an air-gapped setup
+    cert-manager.io/cluster-issuer: corp-ca
+    # Только для ручной загрузки JSON трекера Debian (около 60 МБ) в изолированном контуре
     nginx.ingress.kubernetes.io/proxy-body-size: 128m
   hosts:
-    - host: amberventory.example.com
+    - host: inventory.corp.local
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: amberventory-tls
       hosts:
-        - amberventory.example.com
+        - inventory.corp.local
 ```
 
-### Provide your own credentials
+### Argo CD, Flux и `helm template`
 
-```bash
-kubectl -n amberventory create secret generic amberventory-credentials \
-  --from-literal=username=admin --from-literal=password='...'
-helm upgrade --install amberventory oci://ghcr.io/didaktikm/charts/amberventory -n amberventory \
-  --set auth.existingSecret=amberventory-credentials
-```
+Задавайте `auth.existingSecret` или `auth.password`. Автогенерация пароля использует `lookup`, который в этих инструментах не работает: пароль будет меняться при каждой отрисовке.
 
-With Argo CD, Flux or `helm template` always set `auth.password` or `auth.existingSecret`:
-the chart generates a random password with `lookup`, which these tools cannot do, so the value
-would change on every render.
+### Подсеть недоступна из сети подов
 
-### Scan a network the pod cannot reach
-
-Pods usually sit in an overlay network. If the subnet is reachable from the nodes but not from the pod network,
-run the pod in the node network and pin it to a suitable node:
+Запустите под в сети узла и закрепите его на узле с доступом к нужной подсети:
 
 ```yaml
 hostNetwork: true
@@ -87,9 +84,9 @@ nodeSelector:
   kubernetes.io/hostname: node-in-the-right-vlan
 ```
 
-The application then listens on `config.port` of that node, so restrict access with a firewall or a NetworkPolicy.
+Сервис будет слушать `config.port` на всех интерфейсах узла: ограничьте доступ к порту межсетевым экраном.
 
-### Restrict network access
+### Ограничение сетевого доступа
 
 ```yaml
 networkPolicy:
@@ -99,24 +96,22 @@ networkPolicy:
         matchLabels:
           kubernetes.io/metadata.name: ingress-nginx
   egress:
-    ports: [22, 443]   # add the SSH ports you actually use
+    ports: [22, 443]   # добавьте нестандартные SSH-порты хостов
 ```
 
-### Use a private registry or a private GHCR package
+### Приватный реестр или приватный пакет GHCR
 
-A package published to the GitHub Container Registry is private until you change its visibility.
-Either make the package public or create a pull secret:
+Пакет в GitHub Container Registry приватный, пока его видимость не изменена. Создайте секрет для загрузки образа:
 
 ```bash
 kubectl -n amberventory create secret docker-registry ghcr \
-  --docker-server=ghcr.io --docker-username=<user> --docker-password=<token with read:packages>
+  --docker-server=ghcr.io --docker-username=<пользователь> --docker-password=<токен с read:packages>
 helm upgrade --install amberventory ... --set 'imagePullSecrets[0].name=ghcr'
 ```
 
-### Verify host keys
+### Проверка ключей хостов
 
-Put the output of `ssh-keyscan` for your hosts into `knownHosts`, then tick *Verify host key*
-in the web interface:
+Передайте ключи хостов, полученные доверенным способом, и включите «Проверять host key» при запуске сбора:
 
 ```yaml
 knownHosts: |
@@ -124,20 +119,26 @@ knownHosts: |
   10.0.0.12 ssh-ed25519 AAAA...
 ```
 
-### The SSH key
+### SSH-ключ
 
-The key is uploaded through the web interface and stored in `/data/keys` on the persistent volume
-(mode 600). It is not part of the chart values. Without persistence it has to be uploaded again
-after every restart.
+Ключ загружается через веб-интерфейс и хранится в `/data/keys` на постоянном томе с правами 600. В параметры чарта он не входит. Без постоянного тома ключ придётся загружать после каждого перезапуска.
 
-## Upgrade, test, uninstall
+## Обновление, проверка, удаление
 
 ```bash
-helm upgrade amberventory oci://ghcr.io/didaktikm/charts/amberventory -n amberventory --reuse-values
-helm test amberventory -n amberventory      # calls /healthz from inside the cluster
-helm uninstall amberventory -n amberventory # the PVC is removed with the release unless annotated with helm.sh/resource-policy: keep
+helm upgrade amberventory oci://ghcr.io/didaktikm/charts/amberventory --version <версия> -n amberventory -f values.yaml
+helm test amberventory -n amberventory       # запрос /healthz изнутри кластера
+helm uninstall amberventory -n amberventory  # PVC удаляется, если нет аннотации helm.sh/resource-policy: keep
 ```
 
-{{ template "chart.valuesSection" . }}
+Резервное копирование и откат: [docs/operations.md](https://github.com/didaktikm/amberventory/blob/main/docs/operations.md).
 
-{{ template "helm-docs.versionFooter" . }}
+## Параметры
+
+| Параметр | Тип | По умолчанию | Описание |
+|----------|-----|--------------|----------|
+{{- range .Values }}
+| {{ .Key }} | {{ .Type }} | {{ if .Default }}{{ .Default }}{{ else }}{{ .AutoDefault }}{{ end }} | {{ if .Description }}{{ .Description }}{{ else }}{{ .AutoDescription }}{{ end }} |
+{{- end }}
+
+Файл сгенерирован [helm-docs](https://github.com/norwoodj/helm-docs) из `values.yaml` и `README.md.gotmpl`; правьте их, а не этот файл.
