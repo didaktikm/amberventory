@@ -92,7 +92,7 @@ helm test amberventory -n amberventory
 
 ```bash
 docker run -d --name amberventory-demo -p 127.0.0.1:8081:8080 \
-  -v amberventory-demo:/data ghcr.io/didaktikm/amberventory:0.1.0
+  -v amberventory-demo:/data ghcr.io/didaktikm/amberventory:latest
 docker exec amberventory-demo python -m tools.make_demo
 # http://127.0.0.1:8081
 docker rm -f amberventory-demo && docker volume rm amberventory-demo

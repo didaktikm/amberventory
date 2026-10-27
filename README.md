@@ -64,7 +64,7 @@ docker run -d --name amberventory --restart unless-stopped \
   --network host \
   --env-file amberventory.env \
   -v amberventory-data:/data \
-  ghcr.io/didaktikm/amberventory:0.1.0
+  ghcr.io/didaktikm/amberventory:latest
 ```
 
 Интерфейс доступен на `http://127.0.0.1:8080` того же хоста, пароль — в `amberventory.env`. Для доступа с рабочих мест опубликуйте сервис через reverse proxy с TLS ([пример](docs/deployment.md#reverse-proxy)).
@@ -84,12 +84,12 @@ docker run -d --name amberventory --restart unless-stopped \
   --env-file amberventory.env \
   -e AMBER_HOST=0.0.0.0 \
   -v amberventory-data:/data \
-  ghcr.io/didaktikm/amberventory:0.1.0
+  ghcr.io/didaktikm/amberventory:latest
 ```
 
 Здесь порт опубликован только на loopback вашего компьютера, доступ извне закрыт. Сканирование подсети в этом варианте видит сеть контейнера, а не сеть вашего компьютера.
 
-Тег `0.1.0` доступен после публикации релиза; до этого используйте `edge` (сборка последнего коммита `main`). Пока пакет в GHCR приватный, перед загрузкой образа нужен `docker login ghcr.io`.
+Тег `latest` указывает на последний опубликованный релиз. Для сборки последнего коммита `main` используйте `edge`. Чтобы зафиксировать конкретную версию, подставьте её тег вместо `latest`. Пока пакет в GHCR приватный, перед загрузкой образа нужен `docker login ghcr.io`.
 
 ## Установка
 

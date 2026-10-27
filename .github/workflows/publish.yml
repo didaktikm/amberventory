@@ -1,7 +1,8 @@
 name: Publish
 
 # main  -> image ghcr.io/<owner>/amberventory:edge and :sha-<commit>
-# vX.Y.Z -> image :X.Y.Z, :X.Y, :latest, Helm chart oci://ghcr.io/<owner>/charts/amberventory:X.Y.Z, GitHub Release
+# vX.Y.Z -> image :X.Y.Z, :X.Y, Helm chart oci://ghcr.io/<owner>/charts/amberventory:X.Y.Z, GitHub Release
+#           and :latest, only if vX.Y.Z is the newest stable (non pre-release) tag
 on:
   push:
     branches: [main]
@@ -12,7 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-${{ github.ref }}
+  # Релизы выполняются строго по очереди: параллельные прогоны гонялись бы за тег latest.
+  group: ${{ github.ref_type == 'tag' && 'publish-release' || format('publish-{0}', github.ref) }}
   cancel-in-progress: false
 
 env:
@@ -33,6 +35,20 @@ jobs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # все теги, чтобы определить последний стабильный релиз
+
+      - name: Is this the newest stable release?
+        id: newest
+        if: github.ref_type == 'tag'
+        run: |
+          # Стабильные теги без дефиса; sort -V ставит старшую версию последней.
+          top=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | grep -v -- '-' | sort -V | tail -n 1)
+          if [[ "${GITHUB_REF_NAME}" == "${top}" ]]; then
+            echo "latest=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "latest=false" >> "${GITHUB_OUTPUT}"
+          fi
 
       - uses: docker/setup-qemu-action@v3
 
@@ -55,9 +71,10 @@ jobs:
             type=sha,format=short
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-          # `latest` only for release tags (the default for flavor.latest=auto with semver tags)
+          # `latest` только за последним стабильным релизом. Патч старой минорной версии
+          # не должен откатывать его назад; pre-release никогда не получает `latest`.
           flavor: |
-            latest=auto
+            latest=${{ steps.newest.outputs.latest || 'false' }}
           labels: |
             org.opencontainers.image.title=AmberVentory
             org.opencontainers.image.description=Debian fleet inventory and vulnerability report

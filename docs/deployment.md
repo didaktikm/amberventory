@@ -12,7 +12,7 @@
 | `edge` | последний коммит `main`, не для рабочих установок |
 | `sha-<коммит>` | конкретный коммит `main` |
 
-В рабочих установках указывайте полную версию (`0.1.0`) или digest (`ghcr.io/didaktikm/amberventory@sha256:…`). Пакет в GHCR создаётся приватным: пока он не переведён в public ([releasing.md](releasing.md#публичный-образ)), нужен `docker login ghcr.io` или `imagePullSecrets` в Kubernetes.
+Примеры в документации используют `latest`. Чтобы зафиксировать версию, подставьте её тег вместо `latest` или используйте digest (`ghcr.io/didaktikm/amberventory@sha256:…`). Пакет в GHCR создаётся приватным: пока он не переведён в public ([releasing.md](releasing.md#публичный-образ)), нужен `docker login ghcr.io` или `imagePullSecrets` в Kubernetes.
 
 ## Docker Compose
 
@@ -23,7 +23,7 @@ cp .env.example .env && chmod 600 .env
 docker compose up -d
 ```
 
-`docker-compose.yml` запускает образ версии `AMBERVENTORY_VERSION` (по умолчанию `0.1.0`) в сети хоста, читает настройки из `.env` и хранит данные в томе `amberventory-data`. Чтобы собрать образ из исходников, выполните `docker compose up -d --build`.
+`docker-compose.yml` запускает образ версии `AMBERVENTORY_VERSION` (по умолчанию `latest`) в сети хоста, читает настройки из `.env` и хранит данные в томе `amberventory-data`. Чтобы собрать образ из исходников, выполните `docker compose up -d --build`.
 
 ## Reverse proxy
 
@@ -102,9 +102,11 @@ networkPolicy:
 
 ```bash
 helm upgrade --install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
-  --version 0.1.0 --namespace amberventory -f values.yaml
+  --version <версия чарта> --namespace amberventory -f values.yaml
 helm test amberventory -n amberventory
 ```
+
+Версия чарта указывается явно: в OCI-реестре у чарта нет плавающего тега `latest`. Образ по умолчанию берётся по `appVersion` этой версии, поэтому чарт и приложение всегда согласованы; `image.tag` в values переопределяет образ.
 
 Особенности чарта:
 

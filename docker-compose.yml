@@ -4,7 +4,7 @@
 # Сборка из исходников:   docker compose up -d --build
 services:
   amberventory:
-    image: ghcr.io/didaktikm/amberventory:${AMBERVENTORY_VERSION:-0.1.0}
+    image: ghcr.io/didaktikm/amberventory:${AMBERVENTORY_VERSION:-latest}
     build: .
     container_name: amberventory
     restart: unless-stopped
