@@ -77,21 +77,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Informational: AmberVentory is a vulnerability tool, so scan its own image too.
-      # Report goes to the job log; no code-scanning upload (needs security-events permission).
-      - name: Scan the image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
-        continue-on-error: true
-        with:
-          image-ref: ${{ env.IMAGE }}@${{ steps.build.outputs.digest }}
-          format: table
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
-          exit-code: "0"
-        env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-
   chart:
     name: Package and push the Helm chart
     if: github.ref_type == 'tag'
