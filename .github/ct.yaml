@@ -1,0 +1,9 @@
+# chart-testing configuration (https://github.com/helm/chart-testing)
+remote: origin
+target-branch: main
+chart-dirs:
+  - deploy/helm
+# The chart version is set from the git tag by the release workflow, so it is not bumped in commits.
+check-version-increment: false
+validate-maintainers: false
+helm-extra-args: --timeout 300s

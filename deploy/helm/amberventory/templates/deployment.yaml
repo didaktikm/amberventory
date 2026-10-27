@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "amberventory.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amberventory.labels" . | nindent 4 }}
+  {{- with (include "amberventory.mergedAnnotations" (list . dict) | fromYaml) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  # The application keeps job state and the unlocked key passphrase in memory and stores
+  # data in SQLite on one volume: it must run as exactly one replica.
+  replicas: 1
+  # The ReadWriteOnce volume cannot be mounted by the old and the new pod at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "amberventory.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if include "amberventory.createSecret" . }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "amberventory.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "amberventory.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.hostNetwork }}
+      hostNetwork: true
+      {{- end }}
+      {{- with (include "amberventory.dnsPolicy" .) }}
+      dnsPolicy: {{ . }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "amberventory.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "amberventory.fullname" . }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.auth.enabled .Values.nvd.apiKey .Values.nvd.existingSecret .Values.extraEnv }}
+          env:
+            {{- if .Values.auth.enabled }}
+            - name: AMBER_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "amberventory.authSecretName" . }}
+                  key: {{ if .Values.auth.existingSecret }}{{ .Values.auth.existingSecretUserKey }}{{ else }}username{{ end }}
+            - name: AMBER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "amberventory.authSecretName" . }}
+                  key: {{ if .Values.auth.existingSecret }}{{ .Values.auth.existingSecretPasswordKey }}{{ else }}password{{ end }}
+            {{- end }}
+            {{- if or .Values.nvd.apiKey .Values.nvd.existingSecret }}
+            - name: NVD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "amberventory.nvdSecretName" . }}
+                  key: {{ if .Values.nvd.existingSecret }}{{ .Values.nvd.existingSecretKey }}{{ else }}api-key{{ end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.startupProbe.enabled }}
+          startupProbe:
+            {{- omit .Values.startupProbe "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.livenessProbe.enabled }}
+          livenessProbe:
+            {{- omit .Values.livenessProbe "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
+          readinessProbe:
+            {{- omit .Values.readinessProbe "enabled" | toYaml | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/amber
+            {{- if .Values.knownHosts }}
+            - name: known-hosts
+              mountPath: /home/amber/.ssh/known_hosts
+              subPath: known_hosts
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "amberventory.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: home
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- if .Values.knownHosts }}
+        - name: known-hosts
+          configMap:
+            name: {{ include "amberventory.fullname" . }}-known-hosts
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

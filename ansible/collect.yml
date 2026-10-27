@@ -1,0 +1,13 @@
+---
+# AmberVentory: read-only collection playbook.
+# Uses the `script` module, so targets need only SSH + bash (no Python).
+- name: AmberVentory collect
+  hosts: all
+  gather_facts: false
+  strategy: free
+  tasks:
+    - name: Run collector
+      ansible.builtin.script:
+        cmd: "collector.sh {{ amber_apt_refresh | default('0') }}"
+      register: amber_collect
+      changed_when: false

@@ -1,0 +1,261 @@
+# Default values for amberventory.
+# Comments starting with "# --" are used by helm-docs to generate README.md.
+
+# -- Override the chart name used in resource names
+nameOverride: ""
+# -- Override the full resource name
+fullnameOverride: ""
+# -- Labels added to every resource
+commonLabels: {}
+# -- Annotations added to every resource
+commonAnnotations: {}
+
+image:
+  # -- Image repository
+  repository: ghcr.io/didaktikm/amberventory
+  # -- Image tag. Defaults to the chart `appVersion`
+  tag: ""
+  # -- Image digest (`sha256:...`). Takes precedence over `tag` when set
+  digest: ""
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Pull secrets for a private registry. A new GitHub Container Registry package is private until you make it public
+imagePullSecrets: []
+
+# Authentication. AmberVentory holds an SSH key that opens every host in the inventory,
+# so running it without authentication is not supported by this chart by default.
+auth:
+  # -- Enable HTTP basic authentication in the application (`/healthz` stays open for probes)
+  enabled: true
+  # -- Username. Ignored when `existingSecret` is set
+  username: admin
+  # -- Password. If empty, a random one is generated on first install and kept on upgrades
+  # (only works with `helm install/upgrade`. For `helm template`/GitOps set a value or `existingSecret`)
+  password: ""
+  # -- Name of an existing Secret with the credentials
+  existingSecret: ""
+  # -- Key with the username in `existingSecret`
+  existingSecretUserKey: username
+  # -- Key with the password in `existingSecret`
+  existingSecretPasswordKey: password
+
+nvd:
+  # -- NVD API key. Optional: speeds up CVSS enrichment about ten times
+  apiKey: ""
+  # -- Name of an existing Secret with the NVD API key
+  existingSecret: ""
+  # -- Key with the API key in `existingSecret`
+  existingSecretKey: api-key
+
+# Application settings, mapped to AMBER_* environment variables.
+config:
+  # -- Port the application listens on
+  port: 8080
+  # -- Parallel SSH sessions (`AMBER_FORKS`). Every fork is a separate Python process (rough estimate: 50-80 MiB each), keep this in line with the memory limit
+  forks: 10
+  # -- SSH connect timeout in seconds (`AMBER_SSH_TIMEOUT`)
+  sshTimeout: 15
+  # -- Maximum duration of one collection job in seconds (`AMBER_JOB_TIMEOUT`)
+  jobTimeout: 1800
+  # -- Maximum number of addresses nmap may scan in one request (`AMBER_MAX_SCAN_HOSTS`)
+  maxScanHosts: 4096
+  # -- Vulnerability feed refresh interval in seconds (`AMBER_FEED_TTL`)
+  feedTtl: 21600
+  # -- Maximum CVEs enriched from NVD per run (`AMBER_NVD_MAX`)
+  nvdMaxPerRun: 300
+  # -- Comma-separated glob list of packages highlighted in reports (`AMBER_WATCHLIST`). Empty means the built-in list
+  watchlist: ""
+  # -- Mirror of the Debian Security Tracker JSON (`AMBER_TRACKER_URL`)
+  trackerUrl: ""
+  # -- Mirror of the CISA KEV catalog (`AMBER_KEV_URL`)
+  kevUrl: ""
+  # -- Mirror(s) of the EPSS scores file, comma-separated (`AMBER_EPSS_URL`)
+  epssUrl: ""
+
+proxy:
+  # -- `HTTP_PROXY` for feed downloads. Do not put credentials here, use `extraEnvFrom` with a Secret
+  http: ""
+  # -- `HTTPS_PROXY` for feed downloads
+  https: ""
+  # -- `NO_PROXY`
+  noProxy: ""
+
+# -- Extra environment variables (list of `EnvVar`)
+extraEnv: []
+# -- Extra `envFrom` sources (ConfigMap or Secret references)
+extraEnvFrom: []
+
+# -- Content of a `known_hosts` file mounted at `~/.ssh/known_hosts`. Needed for the "Verify host key" option
+knownHosts: ""
+
+serviceAccount:
+  # -- Create a ServiceAccount
+  create: true
+  # -- Name of the ServiceAccount. Generated from the release name if empty
+  name: ""
+  # -- ServiceAccount annotations
+  annotations: {}
+  # -- Mount the ServiceAccount token. The application does not use the Kubernetes API
+  automount: false
+
+# -- Pod annotations
+podAnnotations: {}
+# -- Pod labels
+podLabels: {}
+
+# -- Pod security context. UID/GID 10001 is the `amber` user baked into the image
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Container security context. Writable paths (`/data`, `/tmp`, `/home/amber`) are mounted as volumes
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Run in the node network namespace. Use it when the subnet you scan is reachable from nodes but not from the pod network
+hostNetwork: false
+# -- DNS policy. With `hostNetwork: true` and an empty value `ClusterFirstWithHostNet` is used
+dnsPolicy: ""
+
+service:
+  # -- Service type
+  type: ClusterIP
+  # -- Service port
+  port: 80
+  # -- Node port, for `type: NodePort`
+  nodePort: null
+  # -- Service annotations
+  annotations: {}
+
+ingress:
+  # -- Create an Ingress
+  enabled: false
+  # -- IngressClass name
+  className: ""
+  # -- Ingress annotations. Uploading the Debian tracker JSON (about 60 MB) needs a larger body limit, for example `nginx.ingress.kubernetes.io/proxy-body-size: 128m`
+  annotations: {}
+  # -- Ingress hosts and paths
+  hosts:
+    - host: amberventory.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration
+  tls: []
+
+httpRoute:
+  # -- Create a Gateway API HTTPRoute
+  enabled: false
+  # -- HTTPRoute annotations
+  annotations: {}
+  # -- Gateways the route attaches to
+  parentRefs: []
+  # -- Hostnames matched by the route
+  hostnames: []
+  # -- Route rules. Defaults to forwarding `/` to the Service
+  rules: []
+
+persistence:
+  # -- Persist `/data` (SSH key, reports, vulnerability database). If disabled an `emptyDir` is used and everything is lost on restart
+  enabled: true
+  # -- Use an existing PersistentVolumeClaim
+  existingClaim: ""
+  # -- StorageClass. `-` disables dynamic provisioning, empty uses the cluster default
+  storageClass: ""
+  # -- Access modes. The application must run as a single replica, so `ReadWriteOnce` is enough
+  accessModes:
+    - ReadWriteOnce
+  # -- Volume size
+  size: 5Gi
+  # -- PVC annotations. Add `helm.sh/resource-policy: keep` to retain the volume after `helm uninstall`
+  annotations: {}
+
+# -- Resource requests and limits. These are estimates, not measurements: memory grows with `config.forks` and the size of the fleet
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    memory: 2Gi
+
+startupProbe:
+  # -- Enable the startup probe
+  enabled: true
+  httpGet:
+    # -- Startup probe HTTP path
+    path: /healthz
+    # -- Startup probe port (named container port)
+    port: http
+  # -- Startup probe period in seconds
+  periodSeconds: 5
+  # -- Failed startup checks before the container is restarted
+  failureThreshold: 30
+livenessProbe:
+  # -- Enable the liveness probe
+  enabled: true
+  httpGet:
+    # -- Liveness probe HTTP path
+    path: /healthz
+    # -- Liveness probe port (named container port)
+    port: http
+  # -- Liveness probe period in seconds
+  periodSeconds: 20
+  # -- Liveness probe timeout in seconds
+  timeoutSeconds: 5
+  # -- Failed liveness checks before the container is restarted
+  failureThreshold: 3
+readinessProbe:
+  # -- Enable the readiness probe
+  enabled: true
+  httpGet:
+    # -- Readiness probe HTTP path
+    path: /healthz
+    # -- Readiness probe port (named container port)
+    port: http
+  # -- Readiness probe period in seconds
+  periodSeconds: 10
+  # -- Readiness probe timeout in seconds
+  timeoutSeconds: 5
+  # -- Failed readiness checks before the pod is taken out of the Service
+  failureThreshold: 3
+
+networkPolicy:
+  # -- Create a NetworkPolicy
+  enabled: false
+  # -- Sources allowed to reach the application (list of NetworkPolicyPeer). Empty allows all sources
+  ingressFrom: []
+  egress:
+    # -- Allow DNS queries (port 53 TCP/UDP) to any destination
+    dns: true
+    # -- Destination TCP ports allowed to any address: SSH to the hosts, HTTPS for the vulnerability feeds. Add the ports you scan
+    ports:
+      - 22
+      - 443
+    # -- Additional egress rules (list of NetworkPolicyEgressRule)
+    extraRules: []
+
+# -- Extra volumes
+extraVolumes: []
+# -- Extra volume mounts for the application container
+extraVolumeMounts: []
+
+# -- Pod termination grace period in seconds
+terminationGracePeriodSeconds: 30
+# -- PriorityClass name
+priorityClassName: ""
+# -- Node selector
+nodeSelector: {}
+# -- Tolerations
+tolerations: []
+# -- Affinity rules
+affinity: {}

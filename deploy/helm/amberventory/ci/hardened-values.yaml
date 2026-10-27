@@ -1,0 +1,22 @@
+auth:
+  password: ci-password
+persistence:
+  enabled: false
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    ports: [22, 443, 2222]
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: public-gateway
+  hostnames:
+    - amberventory.example.com
+hostNetwork: true
+config:
+  forks: 5
+  watchlist: "openssl,php*"

@@ -1,0 +1,29 @@
+services:
+  amberventory:
+    build: .
+    image: amberventory:latest
+    container_name: amberventory
+    restart: unless-stopped
+    # host network: nmap sees the LAN directly (MAC/vendor, no NAT surprises).
+    # If you prefer a bridge network, remove this line and uncomment `ports`.
+    network_mode: host
+    # ports:
+    #   - "127.0.0.1:8080:8080"
+    environment:
+      AMBER_HOST: "127.0.0.1"          # behind Caddy/nginx; set 0.0.0.0 to expose directly
+      AMBER_PORT: "8080"
+      AMBER_USER: "admin"              # HTTP basic auth; leave empty to disable
+      AMBER_PASSWORD: "change-me"
+      AMBER_FORKS: "25"                # parallel SSH sessions
+      # NVD_API_KEY: ""                # optional: faster CVSS enrichment from NVD
+      # AMBER_WATCHLIST: "openssl,openssh,php*,sudo,glibc,linux,nginx"
+      # Air-gapped: point feeds to an internal mirror
+      # AMBER_TRACKER_URL: "https://mirror.corp/debian-tracker.json"
+      # HTTPS_PROXY: "http://proxy.corp:3128"
+    volumes:
+      - amber-data:/data
+      # Optional: pinned host keys for "Проверять host key"
+      # - ./known_hosts:/home/amber/.ssh/known_hosts:ro
+
+volumes:
+  amber-data:

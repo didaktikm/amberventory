@@ -1,0 +1,5 @@
+# Minimal install used by chart-testing.
+auth:
+  password: ci-password
+persistence:
+  size: 1Gi

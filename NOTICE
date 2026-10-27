@@ -1,0 +1,23 @@
+AmberVentory
+Copyright 2026 AmberVentory contributors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+TODO(owner): replace "AmberVentory contributors" with the legal name of the copyright holder.
+
+Third-party components
+----------------------
+Bundled in this repository:
+  * Onest font (app/static/fonts) - SIL Open Font License 1.1, see app/static/fonts/OFL-Onest.txt
+  * JetBrains Mono font (app/static/fonts) - SIL Open Font License 1.1, see app/static/fonts/OFL-JetBrainsMono.txt
+
+Installed into the container image at build time (not part of this repository's license):
+  * ansible-core - GPL-3.0-or-later. Run as a separate process (ansible-playbook, ansible-inventory);
+    AmberVentory does not link against it.
+  * nmap - Nmap Public Source License (NPSL). Run as a separate process. If you redistribute the
+    image, review the NPSL terms: https://nmap.org/npsl/
+  * Python dependencies (FastAPI, Uvicorn, ijson, python-multipart) - MIT/BSD-style licenses.
+  * Debian base image packages - their respective licenses.
+
+Data sources (downloaded at runtime, not redistributed): Debian Security Tracker, CISA KEV,
+FIRST EPSS, NIST NVD. Check each provider's terms of use for your use case.

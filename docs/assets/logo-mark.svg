@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AmberVentory">
+  <title>AmberVentory</title>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F5C373"/>
+      <stop offset="1" stop-color="#E39A1E"/>
+    </linearGradient>
+  </defs>
+  <!-- amber gem (hexagon) -->
+  <path d="M64 6 114 35v58L64 122 14 93V35z" fill="url(#g)"/>
+  <path d="M64 6 114 35 64 64 14 35z" fill="#fff" opacity=".22"/>
+  <!-- inventory rows -->
+  <g fill="#1C2330">
+    <rect x="38" y="52" width="52" height="8" rx="4"/>
+    <rect x="38" y="68" width="52" height="8" rx="4"/>
+    <rect x="38" y="84" width="34" height="8" rx="4"/>
+  </g>
+  <!-- finding marker -->
+  <circle cx="86" cy="88" r="8" fill="#C8243C" stroke="#F8F9F6" stroke-width="3"/>
+</svg>

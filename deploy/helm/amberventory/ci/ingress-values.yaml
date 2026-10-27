@@ -1,0 +1,20 @@
+auth:
+  existingSecret: amberventory-credentials
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 128m
+  hosts:
+    - host: amberventory.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: amberventory-tls
+      hosts:
+        - amberventory.example.com
+nvd:
+  apiKey: ci-nvd-key
+knownHosts: |
+  10.0.0.1 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForChartTestingOnlyFakeKeyForChartTest

@@ -1,0 +1,143 @@
+# {{ template "chart.name" . }}
+
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+{{ template "chart.homepageLine" . }}
+
+## TL;DR
+
+```bash
+helm install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
+  --namespace amberventory --create-namespace
+```
+
+The chart creates a Deployment (one replica), a Service, a PersistentVolumeClaim for `/data`
+and a Secret with a generated admin password. Print the password and open the interface:
+
+```bash
+kubectl -n amberventory get secret amberventory -o jsonpath='{.data.password}' | base64 -d; echo
+kubectl -n amberventory port-forward svc/amberventory 8080:80
+```
+
+## Requirements
+
+- Kubernetes {{ template "chart.kubeVersion" . }}
+- Helm 3.8+ (OCI registries) or Helm 4
+- A StorageClass that can provide a `ReadWriteOnce` volume (or `persistence.existingClaim`)
+- Network paths from the pod to the hosts you want to inventory (SSH, port 22 by default) and, for the
+  vulnerability feeds, HTTPS access to `security-tracker.debian.org`, `www.cisa.gov` and `epss.empiricalsecurity.com`
+  (or mirrors, see `config.trackerUrl`, `config.kevUrl`, `config.epssUrl`)
+
+## Design decisions
+
+| Topic | What the chart does and why |
+|---|---|
+| **One replica, `Recreate`** | The application keeps job state and the unlocked SSH key passphrase in memory and stores data in SQLite on a single volume. Two replicas would not share state, and a rolling update would try to mount a `ReadWriteOnce` volume twice. There is no `replicaCount`, HPA or PodDisruptionBudget on purpose. |
+| **Authentication on by default** | AmberVentory holds a private SSH key that opens every host in the inventory and can run nmap. The chart enables HTTP basic auth and generates a random password. Disabling it prints a warning in the release notes. |
+| **Hardened pod** | Non-root (UID 10001), read-only root filesystem, all capabilities dropped, `RuntimeDefault` seccomp, no ServiceAccount token. Writable paths `/data`, `/tmp` and `/home/amber` are volumes. nmap runs as an unprivileged user and falls back to a TCP connect scan, which is all that port discovery needs. |
+| **Rollout on config change** | Checksums of the ConfigMap and the Secret are pod annotations, so changing values restarts the pod. |
+| **Optional Gateway API** | Set `httpRoute.enabled` to use an `HTTPRoute` instead of an Ingress. |
+
+## Common tasks
+
+### Expose through an Ingress with TLS
+
+```yaml
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    # Needed only to upload the Debian tracker JSON (about 60 MB) by hand in an air-gapped setup
+    nginx.ingress.kubernetes.io/proxy-body-size: 128m
+  hosts:
+    - host: amberventory.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: amberventory-tls
+      hosts:
+        - amberventory.example.com
+```
+
+### Provide your own credentials
+
+```bash
+kubectl -n amberventory create secret generic amberventory-credentials \
+  --from-literal=username=admin --from-literal=password='...'
+helm upgrade --install amberventory oci://ghcr.io/didaktikm/charts/amberventory -n amberventory \
+  --set auth.existingSecret=amberventory-credentials
+```
+
+With Argo CD, Flux or `helm template` always set `auth.password` or `auth.existingSecret`:
+the chart generates a random password with `lookup`, which these tools cannot do, so the value
+would change on every render.
+
+### Scan a network the pod cannot reach
+
+Pods usually sit in an overlay network. If the subnet is reachable from the nodes but not from the pod network,
+run the pod in the node network and pin it to a suitable node:
+
+```yaml
+hostNetwork: true
+nodeSelector:
+  kubernetes.io/hostname: node-in-the-right-vlan
+```
+
+The application then listens on `config.port` of that node, so restrict access with a firewall or a NetworkPolicy.
+
+### Restrict network access
+
+```yaml
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    ports: [22, 443]   # add the SSH ports you actually use
+```
+
+### Use a private registry or a private GHCR package
+
+A package published to the GitHub Container Registry is private until you change its visibility.
+Either make the package public or create a pull secret:
+
+```bash
+kubectl -n amberventory create secret docker-registry ghcr \
+  --docker-server=ghcr.io --docker-username=<user> --docker-password=<token with read:packages>
+helm upgrade --install amberventory ... --set 'imagePullSecrets[0].name=ghcr'
+```
+
+### Verify host keys
+
+Put the output of `ssh-keyscan` for your hosts into `knownHosts`, then tick *Verify host key*
+in the web interface:
+
+```yaml
+knownHosts: |
+  10.0.0.11 ssh-ed25519 AAAA...
+  10.0.0.12 ssh-ed25519 AAAA...
+```
+
+### The SSH key
+
+The key is uploaded through the web interface and stored in `/data/keys` on the persistent volume
+(mode 600). It is not part of the chart values. Without persistence it has to be uploaded again
+after every restart.
+
+## Upgrade, test, uninstall
+
+```bash
+helm upgrade amberventory oci://ghcr.io/didaktikm/charts/amberventory -n amberventory --reuse-values
+helm test amberventory -n amberventory      # calls /healthz from inside the cluster
+helm uninstall amberventory -n amberventory # the PVC is removed with the release unless annotated with helm.sh/resource-policy: keep
+```
+
+{{ template "chart.valuesSection" . }}
+
+{{ template "helm-docs.versionFooter" . }}

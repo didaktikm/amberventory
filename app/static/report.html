@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёт AmberVentory</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='.32' cy='.3' r='.8'%3E%3Cstop offset='.1' stop-color='%23FFE7A8'/%3E%3Cstop offset='.45' stop-color='%23E39A1E'/%3E%3Cstop offset='1' stop-color='%238E520A'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='3' y='3' width='26' height='26' rx='9' ry='9' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/report.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span>Amber<b>Ventory</b></span></a>
+  <span class="spacer"></span>
+  <div class="actions noprint">
+    <button class="btn ghost" id="act-reanalyze" title="Сопоставить сохранённые данные хостов со свежими базами уязвимостей">Пересчитать</button>
+    <button class="btn ghost" id="act-nvd" title="Загрузить CVSS из NVD для уязвимостей, которые Debian ещё не оценил">CVSS из NVD</button>
+    <a class="btn ghost" id="act-csv">CSV</a>
+    <a class="btn ghost" id="act-json" target="_blank">JSON</a>
+    <button class="btn ghost" onclick="window.print()">Печать</button>
+  </div>
+</header>
+
+<main id="main">
+  <div class="loading"><span class="spinner"></span> Загружаю отчёт…</div>
+</main>
+
+<script src="/static/common.js"></script>
+<script src="/static/report.js"></script>
+</body>
+</html>

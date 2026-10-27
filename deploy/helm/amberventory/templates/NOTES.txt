@@ -1,0 +1,50 @@
+AmberVentory {{ .Chart.AppVersion }} is installed as "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+1. Open the web interface:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}
+{{- end }}
+{{- else if .Values.httpRoute.enabled }}
+  {{- range .Values.httpRoute.hostnames }}
+  https://{{ . }}   (check the Gateway listener for the scheme)
+  {{- end }}
+{{- else if eq .Values.service.type "NodePort" }}
+  export NODE_PORT=$(kubectl get svc -n {{ .Release.Namespace }} {{ include "amberventory.fullname" . }} -o jsonpath="{.spec.ports[0].nodePort}")
+  export NODE_IP=$(kubectl get nodes -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if eq .Values.service.type "LoadBalancer" }}
+  kubectl get svc -n {{ .Release.Namespace }} {{ include "amberventory.fullname" . }} -w   # wait for EXTERNAL-IP
+{{- else }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "amberventory.fullname" . }} 8080:{{ .Values.service.port }}
+  then open http://127.0.0.1:8080
+{{- end }}
+{{- if .Values.auth.enabled }}
+
+2. Sign in (HTTP basic authentication):
+{{- if .Values.auth.existingSecret }}
+  user:     kubectl get secret -n {{ .Release.Namespace }} {{ .Values.auth.existingSecret }} -o jsonpath="{.data.{{ .Values.auth.existingSecretUserKey }}}" | base64 -d; echo
+  password: kubectl get secret -n {{ .Release.Namespace }} {{ .Values.auth.existingSecret }} -o jsonpath="{.data.{{ .Values.auth.existingSecretPasswordKey }}}" | base64 -d; echo
+{{- else }}
+  user:     {{ .Values.auth.username }}
+  password: kubectl get secret -n {{ .Release.Namespace }} {{ include "amberventory.fullname" . }} -o jsonpath="{.data.password}" | base64 -d; echo
+{{- end }}
+{{- else }}
+
+WARNING: auth.enabled is false. Anyone who can reach this Service can scan your network
+and use the stored SSH key. Enable authentication or restrict access with a NetworkPolicy.
+{{- end }}
+
+Next steps: load the vulnerability databases (the application downloads them on first start),
+upload an SSH key, then scan a subnet or upload an inventory.
+{{- if not .Values.persistence.enabled }}
+
+WARNING: persistence is disabled. The SSH key, reports and the vulnerability database
+are lost whenever the pod restarts.
+{{- end }}
+{{- if .Values.hostNetwork }}
+
+NOTE: hostNetwork is on. The application listens on port {{ .Values.config.port }} of the node it runs on.
+{{- end }}
+
+Check the deployment:  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

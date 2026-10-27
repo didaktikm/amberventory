@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AmberVentory</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='.32' cy='.3' r='.8'%3E%3Cstop offset='.1' stop-color='%23FFE7A8'/%3E%3Cstop offset='.45' stop-color='%23E39A1E'/%3E%3Cstop offset='1' stop-color='%238E520A'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='3' y='3' width='26' height='26' rx='9' ry='9' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  main { max-width: 1240px; margin: 0 auto; padding: 32px 28px 64px; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 40px; align-items: start; }
+  .intro { grid-column: 1 / -1; display: grid; gap: 8px; max-width: 70ch; }
+  .intro p { color: var(--ink-2); font-size: 16px; }
+  .steps { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
+  .step { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 16px; padding: 24px 24px 26px 20px; border-top: 1px solid var(--line); }
+  .step:first-child { border-top: 0; }
+  .step-num { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 650; font-size: 14px;
+    border: 1.5px solid var(--line-2); color: var(--ink-2); }
+  .step.done .step-num { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .step-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-height: 32px; }
+  .step-head .muted { font-size: 13.5px; }
+  .step-body { grid-column: 2; display: grid; gap: 16px; margin-top: 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--radius-s); padding: 3px; background: var(--paper); gap: 3px; width: fit-content; max-width: 100%; flex-wrap: wrap; }
+  .seg button { appearance: none; border: 0; background: transparent; font: 550 14px/1 var(--font); color: var(--ink-2); padding: 9px 14px; border-radius: 4px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line-2); }
+  .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  .row > .grow { flex: 1 1 260px; }
+  .row > .port { width: 96px; flex: none; }
+  .drop { border: 1.5px dashed var(--line-2); border-radius: var(--radius-m); padding: 22px; display: flex; gap: 14px; align-items: center;
+    cursor: pointer; background: var(--paper); transition: border-color .15s, background .15s; }
+  .drop:hover, .drop.over { border-color: var(--amber); background: var(--amber-wash); }
+  .drop svg { width: 28px; height: 28px; color: var(--ink-3); flex: none; }
+  .drop strong { display: block; font-weight: 600; }
+  .drop span { font-size: 13px; color: var(--ink-3); }
+  .hosts { border: 1px solid var(--line); border-radius: var(--radius-s); max-height: 360px; overflow: auto; }
+  .hosts table.data td { padding: 7px 10px; }
+  .hosts input[type=checkbox] { accent-color: var(--ink); width: 15px; height: 15px; }
+  .hosts-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13.5px; flex-wrap: wrap; }
+  .keycard { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 14px; align-items: center; border: 1px solid var(--line);
+    border-radius: var(--radius-s); padding: 14px 16px; background: var(--paper); }
+  .keycard .ico { grid-row: span 2; width: 34px; height: 34px; border-radius: 8px; background: var(--ok-wash); color: var(--ok); display: grid; place-items: center; }
+  .keycard .ico svg { width: 18px; height: 18px; }
+  .keycard .actions { grid-row: span 2; display: flex; gap: 4px; }
+  .opts { display: grid; gap: 14px; }
+  .launch { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 4px; }
+  .err { color: var(--crit); font-size: 13.5px; }
+  .hint { font-size: 13px; color: var(--ink-3); }
+
+  .run { border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); padding: 22px 24px; display: grid; gap: 16px; margin-bottom: 24px; }
+  .run-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .run-head h2 { flex: 1; }
+  .bar { height: 8px; border-radius: 999px; background: var(--sunken); overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--amber); transition: width .4s ease; }
+  .events { font-family: var(--mono); font-size: 12.5px; max-height: 220px; overflow: auto; display: grid; gap: 2px; color: var(--ink-2); }
+  .events .ok { color: var(--ok); } .events .bad { color: var(--crit); }
+
+  aside { display: grid; gap: 28px; position: sticky; top: 84px; }
+  aside section { display: grid; gap: 12px; }
+  .db { display: grid; gap: 8px; font-size: 13.5px; }
+  .db-row { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 7px; }
+  .db-row span:last-child { color: var(--ink-2); text-align: right; }
+  .reports { display: grid; gap: 2px; }
+  .rep { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--radius-s); text-decoration: none; }
+  .rep:hover { background: var(--surface); }
+  .rep-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
+  .rep-top b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rep .core { height: 7px; }
+  .empty { font-size: 13.5px; color: var(--ink-3); }
+
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; } aside { position: static; } }
+  @media (max-width: 600px) {
+    main { padding: 22px 16px 48px; }
+    .step { grid-template-columns: 1fr; padding: 20px 16px; }
+    .step-num { display: none; }
+    .step-body { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><span>Amber<b>Ventory</b></span></a>
+  <span class="spacer"></span>
+  <div class="dbstat" id="dbstat"><span class="dot"></span><span>Базы уязвимостей…</span></div>
+</header>
+
+<main>
+  <div class="intro">
+    <h1>Инвентаризация Debian-парка</h1>
+    <p>Найдите хосты в подсети или загрузите inventory, подключите SSH-ключ — AmberVentory соберёт ОС, диски, пользователей, службы и пакеты и сопоставит их с Debian Security Tracker, CISA KEV и EPSS. Только чтение: на хостах ничего не меняется.</p>
+  </div>
+
+  <div>
+    <section class="run" id="run" hidden aria-live="polite">
+      <div class="run-head">
+        <div class="spinner" id="run-spin"></div>
+        <h2 id="run-title">Сбор данных</h2>
+        <button class="btn ghost" id="run-log">Лог Ansible</button>
+        <button class="btn danger" id="run-cancel">Остановить</button>
+        <a class="btn primary" id="run-open" target="_blank" hidden>Открыть отчёт</a>
+      </div>
+      <div class="bar"><span id="run-bar" style="width:0"></span></div>
+      <p class="muted small" id="run-msg"></p>
+      <div class="events" id="run-events"></div>
+    </section>
+
+    <div class="steps">
+      <section class="step" id="step-hosts">
+        <div class="step-num">1</div>
+        <div class="step-head"><h2>Хосты</h2><span class="muted" id="hosts-summary">Подсеть или готовый inventory</span></div>
+        <div class="step-body">
+          <div class="seg" role="group" aria-label="Источник хостов">
+            <button type="button" data-src="scan" aria-pressed="true">Сканировать подсеть</button>
+            <button type="button" data-src="inventory" aria-pressed="false">Использовать inventory-файл</button>
+          </div>
+          <div id="src-scan" class="opts">
+            <form class="row" id="scan-form">
+              <label class="field grow">Подсеть, диапазон или адреса
+                <input type="text" class="mono" id="scan-targets" placeholder="10.20.0.0/24  10.20.1.10-40" autocomplete="off" spellcheck="false" required>
+              </label>
+              <label class="field port">SSH-порт<input type="number" id="scan-port" value="22" min="1" max="65535"></label>
+              <button class="btn primary" id="scan-btn" type="submit">Сканировать</button>
+            </form>
+            <p class="hint">nmap ищет открытый SSH и читает баннер: по нему видно Debian и примерный релиз ещё до подключения.</p>
+          </div>
+          <div id="src-inventory" class="opts" hidden>
+            <label class="drop" id="inv-drop">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
+              <div><strong>Перетащите inventory сюда или выберите файл</strong><span>INI или YAML. Группы, ansible_host, ansible_port, ansible_user и прокси-джампы из файла сохраняются.</span></div>
+              <input type="file" id="inv-file" hidden>
+            </label>
+          </div>
+          <p class="err" id="hosts-err" hidden></p>
+          <div id="hosts-wrap" hidden>
+            <div class="hosts-bar">
+              <span id="hosts-count"></span>
+              <span><button class="btn ghost" id="sel-all" type="button">Выбрать все</button><button class="btn ghost" id="sel-deb" type="button">Только Debian</button><button class="btn ghost" id="sel-none" type="button">Снять</button></span>
+            </div>
+            <div class="hosts"><table class="data" id="hosts-table"></table></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="step" id="step-key">
+        <div class="step-num">2</div>
+        <div class="step-head"><h2>SSH-ключ</h2><span class="muted">Приватный ключ, разложенный по машинам</span></div>
+        <div class="step-body">
+          <div id="key-empty" class="opts">
+            <label class="drop" id="key-drop">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 8.7-8.7M16 7l3 3M14 9l2 2"/></svg>
+              <div><strong>Загрузить ключ</strong><span>OpenSSH: id_ed25519, id_rsa и т.п. Хранится в томе контейнера с правами 600.</span></div>
+              <input type="file" id="key-file" hidden>
+            </label>
+            <label class="field">Passphrase, если ключ зашифрован<input type="password" id="key-pass" autocomplete="off"></label>
+          </div>
+          <div id="key-loaded" hidden>
+            <div class="keycard">
+              <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></div>
+              <div><b id="key-name"></b> <span class="tag" id="key-type"></span></div>
+              <div class="actions"><button class="btn ghost" id="key-replace" type="button">Заменить</button><button class="btn ghost danger" id="key-del" type="button">Удалить</button></div>
+              <div class="mono small muted" id="key-fp"></div>
+            </div>
+            <form class="row" id="key-unlock" hidden style="margin-top:12px">
+              <label class="field grow">Ключ зашифрован — введите passphrase (хранится только в памяти)<input type="password" id="key-unlock-pass"></label>
+              <button class="btn" type="submit">Разблокировать</button>
+            </form>
+          </div>
+          <p class="err" id="key-err" hidden></p>
+        </div>
+      </section>
+
+      <section class="step" id="step-run">
+        <div class="step-num">3</div>
+        <div class="step-head"><h2>Сбор и анализ</h2><span class="muted">Ansible, только чтение</span></div>
+        <div class="step-body">
+          <div class="row">
+            <label class="field" style="flex:0 1 220px">Пользователь SSH<input type="text" class="mono" id="opt-user" value="root" spellcheck="false"></label>
+          </div>
+          <div class="opts">
+            <label class="check"><input type="checkbox" id="opt-become"><span>Повышать права через sudo<small>Нужно, если входите не под root: чтение authorized_keys, процессов портов, сертификатов. Требует NOPASSWD.</small></span></label>
+            <label class="check"><input type="checkbox" id="opt-apt"><span>Обновить списки пакетов (apt-get update)<small>Без этого «доступные обновления» берутся из кэша apt на хосте и могут устареть. Меняет только кэш, пакеты не ставятся.</small></span></label>
+            <label class="check"><input type="checkbox" id="opt-strict"><span>Проверять host key<small>Включите, если ключи хостов уже лежат в known_hosts контейнера.</small></span></label>
+          </div>
+          <div class="launch">
+            <button class="btn primary big" id="start" type="button" disabled>Собрать инвентаризацию</button>
+            <span class="hint" id="start-hint">Выберите хосты и загрузите ключ</span>
+          </div>
+          <p class="err" id="start-err" hidden></p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <aside>
+    <section>
+      <div class="row" style="justify-content:space-between;align-items:center"><h2>Базы уязвимостей</h2>
+        <button class="btn ghost small" id="db-update" type="button">Обновить</button></div>
+      <div class="db" id="db"></div>
+      <details class="small">
+        <summary class="muted" style="cursor:pointer">Нет доступа в интернет?</summary>
+        <p class="muted" style="margin:8px 0">Скачайте <a href="https://security-tracker.debian.org/tracker/data/json" target="_blank" rel="noopener">JSON трекера</a> на машине с доступом и загрузите сюда.</p>
+        <label class="btn small"><input type="file" id="db-upload" accept=".json,application/json" hidden>Загрузить JSON трекера</label>
+      </details>
+    </section>
+    <section>
+      <h2>Отчёты</h2>
+      <div class="reports" id="reports"><p class="empty">Пока нет отчётов.</p></div>
+    </section>
+  </aside>
+</main>
+<script src="/static/common.js"></script>
+<script src="/static/index.js"></script>
+</body>
+</html>

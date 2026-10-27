@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "amberventory.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amberventory.labels" . | nindent 4 }}
+  {{- with (include "amberventory.mergedAnnotations" (list . dict) | fromYaml) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  AMBER_HOST: "0.0.0.0"
+  AMBER_PORT: {{ .Values.config.port | quote }}
+  AMBER_DATA: "/data"
+  AMBER_FORKS: {{ .Values.config.forks | quote }}
+  AMBER_SSH_TIMEOUT: {{ .Values.config.sshTimeout | quote }}
+  AMBER_JOB_TIMEOUT: {{ .Values.config.jobTimeout | quote }}
+  AMBER_MAX_SCAN_HOSTS: {{ .Values.config.maxScanHosts | quote }}
+  AMBER_FEED_TTL: {{ .Values.config.feedTtl | quote }}
+  AMBER_NVD_MAX: {{ .Values.config.nvdMaxPerRun | quote }}
+  {{- with .Values.config.watchlist }}
+  AMBER_WATCHLIST: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.trackerUrl }}
+  AMBER_TRACKER_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.kevUrl }}
+  AMBER_KEV_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.epssUrl }}
+  AMBER_EPSS_URL: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.proxy.http }}
+  HTTP_PROXY: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.proxy.https }}
+  HTTPS_PROXY: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.proxy.noProxy }}
+  NO_PROXY: {{ . | quote }}
+  {{- end }}
+{{- if .Values.knownHosts }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "amberventory.fullname" . }}-known-hosts
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "amberventory.labels" . | nindent 4 }}
+  {{- with (include "amberventory.mergedAnnotations" (list . dict) | fromYaml) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  known_hosts: |
+    {{- .Values.knownHosts | trim | nindent 4 }}
+{{- end }}

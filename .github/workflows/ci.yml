@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Reused by publish.yml so a release never ships without passing the same checks.
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python (lint + tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: ShellCheck (collector and CI scripts)
+        run: shellcheck ansible/collector.sh .github/scripts/*.sh
+
+      - name: Tests
+        run: pytest
+
+  chart:
+    name: Helm chart (lint + schema + docs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: azure/setup-helm@v4
+
+      - uses: helm/chart-testing-action@v2.7.0
+
+      - name: chart-testing lint
+        run: ct lint --config .github/ct.yaml --all
+
+      - name: Render every values profile and validate against Kubernetes schemas
+        env:
+          KUBECONFORM_VERSION: v0.6.7
+        run: |
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin kubeconform
+          for values in deploy/helm/amberventory/ci/*-values.yaml; do
+            echo "::group::${values}"
+            helm template ci deploy/helm/amberventory -n ci -f "${values}" \
+              | kubeconform -strict -summary -kubernetes-version 1.31.0 \
+                  -schema-location default \
+                  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+            echo "::endgroup::"
+          done
+
+      - name: Chart README is up to date
+        run: |
+          docker run --rm -v "${PWD}:/helm-docs" -u "$(id -u)" jnorwood/helm-docs:v1.14.0 --chart-search-root deploy/helm
+          git diff --exit-code -- deploy/helm || {
+            echo "::error::deploy/helm/amberventory/README.md is out of date. Run helm-docs and commit the result."
+            exit 1
+          }
+
+  e2e:
+    name: End-to-end (image in kind)
+    runs-on: ubuntu-latest
+    needs: [python]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: amberventory:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image runs as a non-root user and ships the tools it needs
+        run: |
+          docker run --rm --entrypoint sh amberventory:ci -c \
+            'test "$(id -u)" = 10001 && nmap --version | head -1 && ansible-playbook --version | head -1 && ssh -V'
+
+      - uses: azure/setup-helm@v4
+
+      - name: Create a kind cluster
+        uses: helm/kind-action@v1
+
+      - name: Install the chart (read-only root filesystem, as in production)
+        run: |
+          kind load docker-image amberventory:ci --name chart-testing
+          helm install amberventory deploy/helm/amberventory \
+            --namespace amberventory --create-namespace \
+            --set image.repository=amberventory --set image.tag=ci --set image.pullPolicy=Never \
+            --set auth.password=ci-password --set persistence.size=1Gi \
+            --wait --timeout 5m
+
+      - name: helm test
+        run: helm test amberventory --namespace amberventory --timeout 2m
+
+      - name: Smoke test through the Service
+        run: |
+          kubectl -n amberventory port-forward svc/amberventory 18080:80 &
+          sleep 5
+          BASE_URL=http://127.0.0.1:18080 AMBER_USER=admin AMBER_PASSWORD=ci-password SCAN_PORT=8080 \
+            .github/scripts/smoke-test.sh
+
+      - name: The pod did not restart
+        run: |
+          restarts="$(kubectl -n amberventory get pods -l app.kubernetes.io/name=amberventory \
+            -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}')"
+          echo "restarts=${restarts}"
+          test "${restarts}" = "0"
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl -n amberventory get all,pvc,events || true
+          kubectl -n amberventory describe pods || true
+          kubectl -n amberventory logs deploy/amberventory --tail=200 || true
