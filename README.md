@@ -47,17 +47,39 @@
 
 ## Быстрый старт
 
-```bash
-git clone https://github.com/didaktikm/amberventory.git && cd amberventory
-docker compose up -d --build
-# http://127.0.0.1:8080  — логин и пароль задаются в docker-compose.yml (AMBER_USER / AMBER_PASSWORD)
-```
-
-Посмотреть интерфейс без реального парка (синтетические хосты и CVE `CVE-2099-*`, помечены `[DEMO]`):
+Один контейнер, один том с данными. Пароль задайте свой:
 
 ```bash
-docker compose exec amberventory python -m tools.make_demo
+docker run -d --name amberventory --restart unless-stopped \
+  --network host \
+  -e AMBER_HOST=127.0.0.1 \
+  -e AMBER_PORT=8080 \
+  -e AMBER_USER=admin \
+  -e AMBER_PASSWORD="$(openssl rand -base64 24)" \
+  -v amberventory-data:/data \
+  ghcr.io/didaktikm/amberventory:0.1.0
 ```
+
+Откройте `http://127.0.0.1:8080`. Сгенерированный пароль попадает в переменные контейнера, поэтому его можно посмотреть через `docker inspect amberventory`. Проще сразу записать свой пароль в менеджер паролей и подставить его вместо `$(openssl rand -base64 24)`.
+
+Параметры:
+
+| Параметр | Зачем |
+|---|---|
+| `--network host` | nmap видит локальную сеть напрямую, без NAT. Для bridge уберите и добавьте `-p 127.0.0.1:8080:8080` (сканирование подсети тогда видит только сеть контейнера) |
+| `AMBER_HOST=127.0.0.1` | слушаем только локально; публикуйте через reverse proxy с TLS |
+| `AMBER_USER`, `AMBER_PASSWORD` | basic auth. Без них интерфейс открыт всем, кто достучится до порта |
+| `-v amberventory-data:/data` | база, отчёты и SSH-ключ. Без тома всё пропадёт при пересоздании контейнера |
+
+Посмотреть интерфейс без реального парка:
+
+```bash
+docker exec amberventory python -m tools.make_demo
+```
+
+Образ с тегом `0.1.0` появится после публикации релиза. До этого используйте `ghcr.io/didaktikm/amberventory:edge`. Если пакет ещё приватный, `docker pull` потребует `docker login ghcr.io`.
+
+Compose и Kubernetes ниже.
 
 ## Установка
 
