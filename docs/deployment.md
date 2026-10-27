@@ -40,4 +40,4 @@ helm test amberventory -n amberventory
 `helm upgrade …` пересоздаёт под (Recreate), данные на PVC сохраняются. Изменение ConfigMap/Secret вызывает перезапуск через checksum-аннотации. Откат: `helm rollback`.
 
 ## Образ
-`ghcr.io/didaktikm/amberventory:<версия>`; закрепить по digest: `image.digest=sha256:…`. Пакет в GHCR создаётся приватным — измените видимость или используйте `imagePullSecrets`.
+`ghcr.io/didaktikm/amberventory:<версия>`; закрепить по digest: `image.digest=sha256:…`. Пакет в GHCR создаётся приватным: сделайте его public (см. [releasing.md](releasing.md#публичный-образ-docker-pull-без-логина)) или используйте `imagePullSecrets`.

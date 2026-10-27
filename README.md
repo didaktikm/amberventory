@@ -94,7 +94,7 @@ helm install amberventory oci://ghcr.io/didaktikm/charts/amberventory \
 
 - **Реплика одна** (`strategy: Recreate`): состояние заданий и passphrase ключа живёт в памяти процесса, база — SQLite на одном RWO-томе. Масштабирование горизонтально не поддерживается.
 - **Пароль**: если `auth.password` и `auth.existingSecret` не заданы, чарт генерирует случайный и сохраняет его в Secret (через `lookup`). Это **не работает** при `helm template` и в GitOps (Argo CD, Flux) — там задавайте пароль явно или через `existingSecret`.
-- **Образ в GHCR приватный по умолчанию.** После первой публикации откройте Packages → `amberventory` → Package settings → Change visibility, либо создайте `imagePullSecrets`.
+- **Образ в GHCR** публикуется как приватный (так устроен GHCR по умолчанию). Workflow `publish.yml` переводит его в public, если в секретах репозитория задан `PACKAGES_TOKEN` (см. [docs/releasing.md](docs/releasing.md)). Без этого нужен `imagePullSecrets` или ручная смена видимости.
 - **Сканирование подсети** идёт из пода. Если нужна видимость LAN как с хоста — `--set hostNetwork=true` (и подумайте о NetworkPolicy).
 - Контейнер работает от UID 10001, `readOnlyRootFilesystem`, без capabilities, seccomp `RuntimeDefault`.
 
